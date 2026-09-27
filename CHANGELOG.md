@@ -1,3 +1,12 @@
+# 0.1.1
+
+### Fixed
+
+* **Installs on hosts with their own package installer.** The download used GitHub's source archive, which wraps every file in a `light-sources-main/` folder. Foundry's own installer looks for `module.json` inside that folder, but some hosts (Sqyre, #7) extract the archive as-is, so the module never showed up. Each version is now published as a GitHub release whose `module.zip` has the module files at its root. The zip also no longer includes the README's images and GIFs.
+
+  **Update the manifest URL** if you installed from the old one: `https://github.com/brunocalado/light-sources/releases/latest/download/module.json`. Installs from the old URL still update, since the last `module.json` on `main` points to the new location.
+
+
 # 0.1.0
 
 ### Fixed

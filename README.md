@@ -147,7 +147,7 @@ Registered values are **defaults, not locks**: once the GM edits one of these so
 Install via the Foundry VTT Module browser or use this manifest link:
 
 ```
-https://raw.githubusercontent.com/brunocalado/light-sources/refs/heads/main/module.json
+https://github.com/brunocalado/light-sources/releases/latest/download/module.json
 ```
 
 ## 🌍 Translations
