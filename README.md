@@ -171,4 +171,6 @@ Want to translate this module? It's easy:
 
 * **Code License:** GNU GPLv3.
 
+* **Italian translation:** [GregoryWarn](https://github.com/GregoryWarn) ([#8](https://github.com/brunocalado/light-sources/pull/8)).
+
 * [thumbnail/banner](https://unsplash.com/license)

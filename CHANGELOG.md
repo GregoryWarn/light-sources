@@ -1,3 +1,10 @@
+# 0.1.2
+
+### Added
+
+* **Italian translation.** Thanks to [GregoryWarn](https://github.com/GregoryWarn). ([#8](https://github.com/brunocalado/light-sources/pull/8))
+
+
 # 0.1.1
 
 ### Fixed

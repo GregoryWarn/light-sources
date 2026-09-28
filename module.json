@@ -2,7 +2,7 @@
   "id": "light-sources",
   "title": "🕯️ Light Sources",
   "description": "Register items as light sources. Actors can light them from the Token HUD, with configurable light patterns, consumption and duration. Works with any system: pick the item and actor types and the item-quantity path in the module's System Compatibility settings.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "compatibility": {
     "minimum": "14",
     "verified": "14",
@@ -30,6 +30,11 @@
       "lang": "en",
       "name": "English",
       "path": "languages/en.json"
+    },
+    {
+      "lang": "it",
+      "name": "Italiano",
+      "path": "languages/it.json"
     }
   ],
   "url": "https://github.com/brunocalado/light-sources",
