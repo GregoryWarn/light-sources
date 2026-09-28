@@ -1,0 +1,164 @@
+{
+  "LIGHTSOURCES": {
+    "Settings": {
+      "Menu": {
+        "Name": "Fonti di luce",
+        "Label": "Configura fonti di luce",
+        "Hint": "Registra gli oggetti come fonti di luce e configura il loro schema di illuminazione, consumo e durata. Solo il GM."
+      },
+      "Compat": {
+        "Name": "Compatibilità del sistema",
+        "Label": "Configura compatibilità del sistema",
+        "Hint": "Scegli quali tipi di oggetti e attori del sistema rilevato vengono utilizzati da questo modulo e dove viene memorizzata la quantità di un oggetto. Solo il GM."
+      },
+      "AllowFreeForAllDrop": {
+        "Name": "Consenti di lasciare a terra le fonti gratuite",
+        "Hint": "Consente di lasciare a terra una fonte di luce \"gratuita\" accesa. Queste fonti non sono associate ad alcun oggetto, quindi lasciarne una a terra non ha alcun costo e l'operazione può essere ripetuta senza limiti. Disabilita questa opzione per mantenere le fonti gratuite esclusivamente sui token. Le fonti di luce provenienti da un oggetto trasportato possono sempre essere lasciate a terra."
+      },
+      "RestrictPlayerControl": {
+        "Name": "Limita il controllo delle luci al GM",
+        "Hint": "Solo il GM può attivare, spegnere, lasciare a terra o raccogliere una fonte di luce dall'HUD del token. I giocatori continuano a vedere la tavolozza e lo stato acceso/spento, ma i loro clic su questi controlli vengono ignorati."
+      },
+      "AnnounceLit": {
+        "Name": "Annuncia le luci nella chat",
+        "Hint": "Pubblica un messaggio nella chat ogni volta che viene accesa una fonte di luce. Gli altri eventi relativi alla luce (spenta, lasciata a terra, raccolta, esaurita) non vengono annunciati."
+      }
+    },
+    "Config": {
+      "Title": "Fonti di luce",
+      "DropHint": "Trascina qui un oggetto di un tipo abilitato per registrarlo come fonte di luce.",
+      "AddByName": "Aggiungi per nome",
+      "AddByNameTitle": "Aggiungi fonte di luce per nome",
+      "NameLabel": "Nome",
+      "NamePlaceholder": "Nome della fonte di luce",
+      "Empty": "Nessuna fonte di luce ancora registrata.",
+      "OpenItem": "Apri oggetto",
+      "SendToChat": "Invia alla chat",
+      "NoItemReference": "Nessun oggetto collegato trovato. Trascina nuovamente questa fonte di luce per abilitare questa azione.",
+      "Grant": "Gratuita (nessun oggetto richiesto)",
+      "HudHidden": "Nascondi dall'HUD del token — la fonte può essere accesa solo tramite l'API del modulo, da qualunque elemento ne sostenga il costo. Continua a essere visualizzata quando è accesa, così può essere spenta.",
+      "Edit": "Modifica schema di illuminazione",
+      "Restore": "Ripristina impostazioni predefinite del modulo",
+      "RestoreTooltip": "Annulla le modifiche e ripristina i valori registrati dal modulo per questa fonte. La fonte tornerà ad aggiornarsi automaticamente.",
+      "RestoreDisabledTooltip": "Niente da ripristinare — non hai modificato questa fonte di luce da quando è stata registrata dal modulo.",
+      "RestoreTitle": "Ripristina impostazioni predefinite del modulo",
+      "RestoreContent": "Annullare le modifiche a <strong>{name}</strong> e ripristinare gli schemi di illuminazione, il consumo e la durata registrati dal relativo modulo?",
+      "Delete": "Rimuovi fonte di luce",
+      "DeleteTitle": "Rimuovi fonte di luce",
+      "DeleteContent": "Rimuovere <strong>{name}</strong> dalle fonti di luce registrate?",
+      "InvalidType": "Il tipo di questo oggetto non è abilitato come fonte di luce. Abilitalo prima in Compatibilità del sistema.",
+      "Duplicate": "{name} è già registrato come fonte di luce.",
+      "Unlimited": "Illimitata",
+      "Minutes": "{minutes} min",
+      "Patterns": "{count} schemi",
+      "Consumed": "Consumato all'utilizzo",
+      "FreeForAll": "Gratuita",
+      "Coverable": "Può essere coperta",
+      "ManagedByTooltip": "Registrata da un sistema o modulo esterno: {name}",
+      "NameOnlyBadge": "Nessun oggetto",
+      "NameOnlyTooltip": "Registrata solo per nome — nessun oggetto collegato."
+    },
+    "Patterns": {
+      "Standard": "Standard",
+      "New": "Nuovo schema",
+      "NamePlaceholder": "Nome dello schema",
+      "Add": "Aggiungi schema",
+      "Remove": "Rimuovi schema",
+      "Restore": "Ripristina questo schema alle impostazioni predefinite del modulo"
+    },
+    "Compat": {
+      "Title": "Compatibilità del sistema",
+      "SystemNote": "Sistema rilevato: {system} ({id}). Abilita i tipi che questo modulo deve considerare come fonti di luce e gli attori che possono trasportarle.",
+      "Tabs": {
+        "items": "Tipi di oggetto",
+        "actors": "Tipi di attore",
+        "quantity": "Quantità"
+      },
+      "ItemsHint": "Abilita i tipi di oggetto che possono essere registrati come fonti di luce.",
+      "ActorsHint": "Abilita i tipi di attore autorizzati a utilizzare fonti di luce \"gratuite\" dall'HUD del token. Gli attori che trasportano un oggetto corrispondente a una fonte di luce possono sempre utilizzarlo, indipendentemente da questo elenco.",
+      "NoItemTypes": "Il sistema attivo non definisce alcun tipo di oggetto.",
+      "NoActorTypes": "Il sistema attivo non definisce alcun tipo di attore.",
+      "QuantityPath": "Percorso della quantità dell'oggetto",
+      "QuantityHint": "Percorso separato da punti che conduce alla quantità di un oggetto, a partire dalla radice dell'oggetto (ad esempio: system.quantity). Viene utilizzato per verificare la disponibilità e sottrarre una unità quando una fonte di luce viene consumata. Lascia vuoto se gli oggetti del sistema non hanno una quantità: in tal caso le fonti di luce consumabili non ridurranno mai il conteggio.",
+      "Save": "Salva"
+    },
+    "LightEditor": {
+      "Title": "Schema di illuminazione: {name}",
+      "Tabs": {
+        "patterns": "Schemi",
+        "usage": "Consumo"
+      },
+      "Fields": {
+        "PatternsHint": "Ogni schema rappresenta un modo in cui questa fonte di luce può essere utilizzata — ad esempio un fascio ampio e a corto raggio rispetto a uno stretto e a lungo raggio. L'attore sceglie uno schema dall'HUD del token. Il consumo e la durata sono condivisi da tutti gli schemi.",
+        "PreviewHint": "Seleziona un token sulla tela per visualizzare in tempo reale queste impostazioni mentre le modifichi. L'illuminazione del token viene ripristinata automaticamente quando chiudi questa finestra.",
+        "Dim": "Raggio luce fioca",
+        "Bright": "Raggio luce intensa",
+        "Angle": "Angolo di emissione",
+        "Color": "Colore della luce",
+        "Alpha": "Intensità del colore",
+        "Negative": "Fonte di oscurità",
+        "NegativeHint": "Emette oscurità invece di luce, oscurando l'area compresa nei suoi raggi anziché illuminarla. L'oscurità dispone di un proprio insieme di animazioni, quindi attivando questa opzione viene cancellato il tipo di animazione scelto qui sotto.",
+        "AnimationType": "Tipo di animazione",
+        "AnimationNone": "Nessuna",
+        "Speed": "Velocità dell'animazione",
+        "Intensity": "Intensità dell'animazione",
+        "Reverse": "Inverti direzione",
+        "Consume": "Consuma all'utilizzo",
+        "ConsumeHint": "Quando abilitato, l'attivazione di questa fonte di luce riduce di 1 la quantità dell'oggetto. L'oggetto rimane nell'inventario anche quando la quantità raggiunge zero, ma non è più disponibile per illuminare. La luce non viene mai consumata nuovamente automaticamente.",
+        "Coverable": "Può essere coperta",
+        "CoverableHint": "Aggiunge un comando Riponi accanto a Lascia a terra nell'HUD del token, coprendo la fonte di luce invece di terminarla: smette di illuminare ma continua a consumarsi e può essere scoperta in seguito con il tempo rimanente. È pensato per una luce che rappresenta un incantesimo su un oggetto anziché una fiamma — un trucchetto Luce lanciato su un sassolino viene riposto in tasca, non spento. Disabilita questa opzione per torce e lanterne.",
+        "Duration": "Durata (minuti)",
+        "DurationHint": "Minuti prima che la luce si spenga automaticamente (conteggiati secondo la modalità scelta qui sotto). Usa 0 per una luce illimitata che si spegne solo quando viene spenta manualmente.",
+        "DurationPreset": "Durata preimpostata",
+        "DurationMode": "Conteggio della durata",
+        "DurationModeWorld": "Tempo di gioco (orologio del mondo)",
+        "DurationModeReal": "Tempo reale (orologio)",
+        "DurationModeHint": "Tempo di gioco: la durata della luce diminuisce quando il GM fa avanzare l'orologio del mondo e rimane invariata quando l'orologio è fermo. Tempo reale: la durata della luce diminuisce in minuti reali anche quando il gioco è in pausa o il proprietario è offline.",
+        "RangePreset": "Portata preimpostata",
+        "RangeCustom": "Personalizzata"
+      },
+      "Save": "Salva"
+    },
+    "Hud": {
+      "Tooltip": "Fonti di luce",
+      "TooltipLit": "{item} — accesa",
+      "TooltipRemaining": "{item} — {minutes} min rimanenti",
+      "TooltipStowed": "{item} — riposta",
+      "TooltipStowedRemaining": "{item} — riposta, {minutes} min rimanenti",
+      "Extinguish": "Spegni luce",
+      "Drop": "Lascia a terra",
+      "DropTooltip": "Lascia questa fonte di luce a terra come Luce Ambientale",
+      "Stow": "Riponi",
+      "StowTooltip": "Copri questa fonte di luce senza terminarla — continuerà a consumarsi senza essere visibile",
+      "Uncover": "Scopri",
+      "UncoverTooltip": "Scopri questa fonte di luce per farla illuminare nuovamente",
+      "Pickup": "Raccogli luce",
+      "PickupTooltip": "Raccogli questa fonte di luce da terra e trasportala nuovamente",
+      "PickupSourceGone": "La fonte di luce {item} è stata raccolta, ma non è più configurata e quindi non è stato possibile riaccenderla.",
+      "PickupBurnedOut": "{item} si era già esaurita prima di essere raccolta.",
+      "NoGm": "Nessun GM è connesso per posizionare la luce. Chiedi a un GM di effettuare l'accesso e riprova.",
+      "NoItem": "{name} non possiede più {item}.",
+      "GmOnly": "Solo il GM può controllare le fonti di luce."
+    },
+    "Interactive": {
+      "Legend": "Fonti di luce",
+      "Label": "I giocatori possono accendere/spegnere",
+      "Hint": "Mostra sulla mappa un comando che consente ai giocatori di accendere e spegnere questa luce. Devono spostare un token sulla luce o accanto ad essa per poter utilizzare il comando.",
+      "OutOfReach": "Devi avvicinarti per poter raggiungere quella luce."
+    },
+    "Chat": {
+      "ExpiredTitle": "La luce si spegne",
+      "Expired": "La fonte di luce {item} trasportata da {actor} si esaurisce.",
+      "LitTitle": "Luce accesa",
+      "Lit": "{actor} accende {item}.",
+      "LitPattern": "{actor} accende {item} ({pattern}).",
+      "DroppedTitle": "Luce lasciata a terra",
+      "Dropped": "{actor} lascia {item} a terra.",
+      "PickedUpTitle": "Luce raccolta",
+      "PickedUp": "{actor} raccoglie nuovamente {item} da terra.",
+      "GroundExpiredTitle": "La luce si spegne",
+      "GroundExpired": "La fonte di luce {item} lasciata a terra si esaurisce.",
+      "DragHint": "Trascina su una scheda Attore per aggiungerla al suo inventario."
+    }
+  }
+}
