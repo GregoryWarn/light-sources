@@ -21,7 +21,7 @@ jobs:
       REPO_URL: https://github.com/${{ github.repository }}
       FOUNDRY_TOKEN: ${{ secrets.FOUNDRY_PACKAGE_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check for a new version
         id: check
