@@ -691,7 +691,26 @@ async function createAmbientLight(sceneId, lightData) {
   const scene = game.scenes.get(sceneId);
   if ( !scene ) return false;
   const [created] = await scene.createEmbeddedDocuments("AmbientLight", [lightData], { keepId: true });
+  forgetLightHistory(scene, lightData._id);
   return !!created;
+}
+
+/**
+ * Take a dropped light out of the Lighting layer's undo history. Core records every
+ * Scene-embedded write the GM's client makes on the scene it is viewing, relayed
+ * ones included. Ctrl+Z on the Lighting layer would then delete a light that was
+ * dropped, putting the flame out altogether, or bring back one already picked up
+ * (or taken back when a drop failed), putting it in two places. A light the GM
+ * placed by hand is none of this module's writes and keeps its history.
+ * @param {Scene} scene The scene holding the light.
+ * @param {string} lightId The id of the light.
+ * @returns {void}
+ */
+function forgetLightHistory(scene, lightId) {
+  const layer = canvas.lighting;
+  if ( !layer || !canvas.scene || (scene !== canvas.scene) ) return;
+  for ( const event of layer.history ) event.data = event.data.filter(d => d._id !== lightId);
+  layer.history = layer.history.filter(event => event.data.length);
 }
 
 /**
@@ -751,6 +770,7 @@ async function deleteAmbientLight(sceneId, lightId) {
   const scene = game.scenes.get(sceneId);
   if ( !scene?.lights.has(lightId) ) return false;
   await scene.deleteEmbeddedDocuments("AmbientLight", [lightId]);
+  forgetLightHistory(scene, lightId);
   return true;
 }
 
@@ -903,6 +923,7 @@ async function sweepOnce() {
       console.error(`${MODULE_ID} | Could not remove the burned-out lights on ${scene.name}`, err);
       continue;
     }
+    for ( const { light } of burnedOut ) forgetLightHistory(scene, light.id);
     messages.push(...burnedOut.map(({ flag }) => buildLightMessage(
       // The actor is only the speaker here; a dropped light outlives its owner's
       // token being deleted, so a missing actor just yields a generic speaker.

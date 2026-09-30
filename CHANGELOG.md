@@ -12,6 +12,7 @@
 
 * **Removing a lit item puts its light out.** Deleting a lit lantern from a sheet, or dragging it to another actor, used to leave the token glowing until the timer ran out.
 * **Burned-out lights go out without console errors, and lights on the ground go out on time.** When the in-game clock moved past a light's end, Foundry's own effect expiry and this module both acted on the same light, and two checks could overlap and put the same light out twice. The error that followed also stopped that check before it reached the lights lying on the ground, so they stayed lit up to 15 seconds longer. Light effects now use their own expiry event, which Foundry leaves to this module, and the checks run one at a time. Lights lit before this update can still show the error once, when they burn out.
+* **Ctrl+Z on the Lighting layer no longer loses or copies a dropped light.** The GM's client recorded every light the module placed on the ground or picked up, including the ones done for players. Undoing on the Lighting layer could then remove a dropped light, putting the flame out for good, or bring back one already picked up, so the same flame burned in two places. Those changes are no longer recorded. Lights the GM places by hand can still be undone as before.
 * **A player dropping a light with no GM connected keeps it.** The light was put out on the token before the module found out there was no GM to place it on the ground, so it vanished. The light now stays on the token and the player is told a GM is needed.
 
 
