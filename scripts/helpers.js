@@ -212,13 +212,30 @@ export function isWithinReach(token, point) {
 }
 
 /**
- * Find a light lying on the ground within reach of a token.
+ * Whether a ground light belongs to another package right now: it was placed through
+ * the public API on that package's behalf, and that package is still running to hand
+ * it back. Decided at read time rather than stored, so a light whose owner is later
+ * disabled becomes an ordinary ground light again — picked up from the Token HUD and
+ * switched on the map — instead of being stranded where nothing can ever claim it.
+ * The owner may be a system as well as a module.
+ * @param {AmbientLightDocument} light The light to test.
+ * @returns {boolean} True when another active package owns the light.
+ */
+export function isManagedElsewhere(light) {
+  const owner = light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT)?.managedBy;
+  if ( !owner ) return false;
+  return (owner === game.system.id) || !!game.modules.get(owner)?.active;
+}
+
+/**
+ * Find a light lying on the ground within reach of a token. A light another package
+ * manages is left out: that package hands it back along with its own document.
  * @param {foundry.canvas.placeables.Token} token The token reaching for a light.
  * @returns {AmbientLightDocument|null} The dropped light in reach, or null.
  */
 export function findGroundLight(token) {
   for ( const light of (canvas.scene?.lights ?? []) ) {
-    if ( !light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT) ) continue;
+    if ( !light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT) || isManagedElsewhere(light) ) continue;
     if ( isWithinReach(token, { x: light.x, y: light.y }) ) return light;
   }
   return null;

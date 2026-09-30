@@ -7,7 +7,7 @@
  */
 
 import { MODULE_ID, FLAGS } from "./constants.js";
-import { isWithinReach } from "./helpers.js";
+import { isWithinReach, isManagedElsewhere } from "./helpers.js";
 import { toggleAmbientLight } from "./light-manager.js";
 
 /**
@@ -24,6 +24,17 @@ let layer = null;
  * @type {Map<string, LightControl>}
  */
 const controls = new Map();
+
+/**
+ * Whether players may switch a light from the map: the GM (or a drop) marked it
+ * interactive, and no other package is managing it. A managed light is switched by
+ * its owner, if at all — on and off here would fight whatever that package shows.
+ * @param {AmbientLightDocument} light The light to test.
+ * @returns {boolean} True when the light gets a control.
+ */
+function isInteractive(light) {
+  return !!light.getFlag(MODULE_ID, FLAGS.INTERACTIVE) && !isManagedElsewhere(light);
+}
 
 /**
  * A clickable icon on the map that switches an AmbientLight on and off, so a player
@@ -80,7 +91,7 @@ class LightControl extends PIXI.Container {
    * @type {boolean}
    */
   get isVisible() {
-    if ( !this.light.getFlag(MODULE_ID, FLAGS.INTERACTIVE) ) return false;
+    if ( !isInteractive(this.light) ) return false;
     if ( !canvas.visibility.tokenVision ) return true;
     return canvas.visibility.testVisibility(this.center, { object: this, tolerance: 0 });
   }
@@ -285,7 +296,7 @@ async function onCanvasReady() {
  * @returns {Promise<void>}
  */
 async function addControl(light) {
-  if ( !layer || !light.getFlag(MODULE_ID, FLAGS.INTERACTIVE) ) return;
+  if ( !layer || !isInteractive(light) ) return;
   if ( controls.has(light.id) ) return;
   const control = layer.addChild(new LightControl(light));
   controls.set(light.id, control);
@@ -343,7 +354,7 @@ function onCreateAmbientLight(light) {
 function onUpdateAmbientLight(light, changed) {
   if ( light.parent !== canvas.scene ) return;
 
-  const interactive = !!light.getFlag(MODULE_ID, FLAGS.INTERACTIVE);
+  const interactive = isInteractive(light);
   const control = controls.get(light.id);
   if ( interactive && !control ) {
     addControl(light).catch(err => console.error(`${MODULE_ID} | Failed to draw light control`, err));

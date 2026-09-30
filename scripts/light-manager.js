@@ -7,7 +7,7 @@
  */
 
 import {
-  MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS
+  MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS, PICKUP_REASONS
 } from "./constants.js";
 import {
   findMatchingItems, buildLightMessage, getItemQuantity, getQuantityPath, getSources, getAnnounceLit
@@ -149,9 +149,12 @@ function isExpired(flag, now) {
  * @param {boolean} [options.stowed=false] Create the light already covered, so it
  *   burns down without shining (see `setLightStowed`). Used when picking a light
  *   back up that was lying on the ground switched off.
+ * @param {string|null} [options.itemId=null] The carried Item that is burning (see
+ *   `burningItemId`). Recorded so the light can leave with that exact Item, and go
+ *   out when it leaves any other way (see `onDeleteItem`).
  * @returns {Promise<void>}
  */
-async function createLightEffect(actor, source, pattern, timing, { stowed = false } = {}) {
+async function createLightEffect(actor, source, pattern, timing, { stowed = false, itemId = null } = {}) {
   // Only one light effect at a time: remove any previous one (switching sources / re-lighting).
   const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT)).map(e => e.id);
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale);
@@ -191,9 +194,25 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
       patternId: pattern.id,
       patternName: pattern.name,
       itemName: source.name,
+      itemId,
       ...timing
     } } }
   }]);
+}
+
+/**
+ * The carried Item a newly lit light burns on, if any. Only a non-consuming source's
+ * item *is* the light: a consuming source spent one unit to light a flame that is no
+ * longer among what the actor carries, and a free-for-all source has no item at all.
+ * When several copies match, the first is the one lit — the same item the Token HUD
+ * lists first.
+ * @param {Actor} actor The actor being lit.
+ * @param {object} source The registered light source definition.
+ * @returns {string|null} The burning Item's id, or null when no carried item is the light.
+ */
+function burningItemId(actor, source) {
+  if ( source.consume || source.freeForAll ) return null;
+  return findMatchingItems(actor, source)[0]?.id ?? null;
 }
 
 /**
@@ -243,7 +262,7 @@ export async function activateLight(actor, source, pattern) {
     }
   }
 
-  await createLightEffect(actor, source, pattern, buildTiming(source));
+  await createLightEffect(actor, source, pattern, buildTiming(source), { itemId: burningItemId(actor, source) });
 
   if ( !getAnnounceLit() ) return true;
 
@@ -345,15 +364,57 @@ export async function dropLight(actor, source, pattern, token) {
   const active = getActiveLight(actor);
   if ( active?.sourceId !== source.id ) return;
 
-  // The light is now the one lying on the ground, not the one on the token.
-  await deactivateLight(actor);
-
   // AmbientLight documents anchor on their center point, so drop the light at the
   // token's center rather than its top-left origin (token.x / token.y).
   const { x, y } = token.center;
-  const placed = await placeAmbientLight(canvas.scene?.id, {
+  const placed = await moveLightToGround(actor, canvas.scene?.id, {
+    ...buildGroundLightData(actor, source, pattern, active),
     x,
-    y,
+    y
+  });
+  // Nothing reached the ground (no scene, or no GM to place it): stay silent rather
+  // than announce a light that does not exist. `placeAmbientLight` reports the cause,
+  // and the flame is still burning on the token.
+  if ( !placed ) return;
+
+  await ChatMessage.implementation.createDocuments([
+    buildLightMessage(
+      actor,
+      game.i18n.localize("LIGHTSOURCES.Chat.DroppedTitle"),
+      game.i18n.format("LIGHTSOURCES.Chat.Dropped", { actor: actor.name, item: source.name })
+    )
+  ]);
+}
+
+/**
+ * Build the AmbientLight creation data for a light leaving an actor, everything but
+ * its position. Shared by the Token HUD's drop and the public API's, so a light put
+ * down either way carries the same flags and burns on the same clock.
+ *
+ * The `_id` is minted here and kept on creation (see `createAmbientLight`), so the
+ * dropping client knows which document to take back even when the GM created it
+ * over the socket relay (see `moveLightToGround`).
+ * @param {Actor} actor The actor the light leaves.
+ * @param {object} source The registered light source definition.
+ * @param {object} pattern The light pattern ({id, name, light}) whose light data is placed.
+ * @param {object} active The actor's active light payload (see `getActiveLight`).
+ * @param {string|null} [managedBy=null] The package placing the light through the API.
+ * @returns {object} AmbientLight creation data without `x` / `y`.
+ */
+function buildGroundLightData(actor, source, pattern, active, managedBy = null) {
+  const ground = {
+    sourceId: source.id,
+    patternId: pattern.id,
+    patternName: pattern.name,
+    itemName: source.name,
+    actorUuid: actor.uuid,
+    mode: active.mode,
+    expiresAtWorld: active.expiresAtWorld,
+    expiresAtReal: active.expiresAtReal
+  };
+  if ( managedBy ) ground.managedBy = managedBy;
+  return {
+    _id: foundry.utils.randomID(),
     config: buildLightData(pattern),
     // A covered light put down stays covered: `hidden` is the ground's own version
     // of stowed — the same state the interactive control switches — so the light
@@ -365,32 +426,150 @@ export async function dropLight(actor, source, pattern, token) {
     // instant it gutters out does not move (see `sweepExpiredLights`).
     //
     // A light you put down yourself is always yours to work: it gets the interactive
-    // control automatically, with no GM opt-in, unlike scenery lights.
-    flags: { [MODULE_ID]: {
-      [FLAGS.INTERACTIVE]: true,
-      [FLAGS.GROUND_LIGHT]: {
-        sourceId: source.id,
-        patternId: pattern.id,
-        patternName: pattern.name,
-        itemName: source.name,
-        actorUuid: actor.uuid,
-        mode: active.mode,
-        expiresAtWorld: active.expiresAtWorld,
-        expiresAtReal: active.expiresAtReal
-      }
-    } }
-  });
-  // Nothing reached the ground (no scene, or no GM to place it): stay silent rather
-  // than announce a light that does not exist. `placeAmbientLight` reports the cause.
-  if ( !placed ) return;
+    // control automatically, with no GM opt-in, unlike scenery lights. A managed one
+    // carries the flag too, and gets the control only once its owner is gone (see
+    // `isManagedElsewhere`).
+    flags: { [MODULE_ID]: { [FLAGS.INTERACTIVE]: true, [FLAGS.GROUND_LIGHT]: ground } }
+  };
+}
 
-  await ChatMessage.implementation.createDocuments([
-    buildLightMessage(
-      actor,
-      game.i18n.localize("LIGHTSOURCES.Chat.DroppedTitle"),
-      game.i18n.format("LIGHTSOURCES.Chat.Dropped", { actor: actor.name, item: source.name })
-    )
-  ]);
+/**
+ * Move an actor's burning light onto the ground: place it first, and only then put
+ * it out on the actor. The other order loses the flame whenever placing fails — no GM
+ * connected to relay to, a scene deleted meanwhile, a module cancelling the creation.
+ * If putting it out throws, or a pre-delete hook quietly refuses it, the placed light
+ * is taken back, so the flame ends up in exactly one place.
+ * @param {Actor} actor The actor the light leaves.
+ * @param {string} sceneId The id of the scene to place the light on.
+ * @param {object} lightData The AmbientLight creation data, with its `_id`.
+ * @returns {Promise<boolean>} True once the light is on the ground (or handed to the
+ *   active GM to place) and off the actor.
+ */
+async function moveLightToGround(actor, sceneId, lightData) {
+  if ( !(await placeAmbientLight(sceneId, lightData)) ) return false;
+  try {
+    await deactivateLight(actor);
+  } catch(err) {
+    await removeAmbientLight(sceneId, lightData._id);
+    throw err;
+  }
+  // A cancelled deletion resolves without throwing, so the outcome is checked, not assumed.
+  if ( getLightEffect(actor) ) {
+    await removeAmbientLight(sceneId, lightData._id);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Move the light burning on an Item's actor to the ground, together with that Item.
+ * The engine behind the public `dropLightWithItem`; runs on a GM client, which may be
+ * viewing another scene, and announces nothing — the caller narrates its own drop.
+ *
+ * The light moves only when `item` is the very Item it burns on (`itemId`). No
+ * matching by name and no counting of copies: an Item id says exactly what those
+ * would guess at. It must be called while `item` is still on its actor, since the
+ * actor is where the light and the id are read, and because removing the Item first
+ * would already have put the light out (see `onDeleteItem`).
+ * @param {Item} item The Item about to leave its actor.
+ * @param {Scene} scene The scene the light lands on.
+ * @param {{x: number, y: number, elevation: number, levels: string[]}} where Where it lands.
+ * @param {string} managedBy The package placing the light, which hands it back itself.
+ * @returns {Promise<AmbientLightDocument|null>} The placed light, or null when nothing moved.
+ */
+export async function dropItemLight(item, scene, { x, y, elevation, levels }, managedBy) {
+  const actor = item.parent;
+  const active = getActiveLight(actor);
+  if ( !active?.itemId || (active.itemId !== item.id) ) return null;
+
+  const source = getSources().find(s => s.id === active.sourceId);
+  const pattern = source?.patterns?.find(p => p.id === active.patternId);
+  if ( !pattern ) return null;
+
+  const lightData = {
+    ...buildGroundLightData(actor, source, pattern, active, managedBy),
+    // The schema stores integer coordinates; a hex centre or a gridless point is fractional.
+    x: Math.round(x),
+    y: Math.round(y),
+    elevation,
+    levels
+  };
+  if ( !(await moveLightToGround(actor, scene.id, lightData)) ) return null;
+  return scene.lights.get(lightData._id) ?? null;
+}
+
+/**
+ * Work out whether a light taken off the ground can burn on a token again. Shared by
+ * the Token HUD's pickup and the public API's, so both refuse on the same rule.
+ * @param {object} ground The light's `GROUND_LIGHT` payload.
+ * @returns {{source?: object, pattern?: object, reason: string|null}} The source and
+ *   pattern to light, or the `PICKUP_REASONS` value explaining why it cannot be lit.
+ */
+function readGroundLight(ground) {
+  const source = getSources().find(s => s.id === ground.sourceId);
+  const pattern = source?.patterns?.find(p => p.id === ground.patternId);
+  if ( !pattern ) return { reason: PICKUP_REASONS.SOURCE_REMOVED };
+  if ( isExpired(ground, Date.now()) ) return { reason: PICKUP_REASONS.BURNED_OUT };
+  return { source, pattern, reason: null };
+}
+
+/**
+ * Put a ground light back on the actor carrying `item`, burning on that Item with the
+ * time it has left. The engine behind the public `pickupGroundLight`; runs on a GM
+ * client and announces nothing — the caller tells its own user, from the returned
+ * reason, why a light did not come back.
+ *
+ * The light always leaves the ground once it is found, even when it cannot be relit,
+ * exactly as `pickupLight` does: the caller has just taken the Item it belongs to, and
+ * a light left behind would belong to nothing.
+ *
+ * Unlike the Token HUD's pickup, a light already burning on the actor is never
+ * replaced; the picked-up one is simply not relit (`occupied`). That costs nothing:
+ * only a non-consuming source's light reaches the ground this way, so relighting it
+ * from the Item is free. Replacing instead would silently snuff whatever the actor
+ * had lit, a spent torch included.
+ * @param {Item} item The Item the light returns with, already on the picking actor.
+ * @param {AmbientLightDocument} light A ground light placed by `dropItemLight`.
+ * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the actor is now lit,
+ *   and otherwise the `PICKUP_REASONS` value saying why not.
+ */
+export async function pickupItemLight(item, light) {
+  const ground = light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT);
+  const hidden = !!light.hidden;
+  if ( !(await deleteAmbientLight(light.parent?.id, light.id)) ) return { lit: false, reason: PICKUP_REASONS.MISSING };
+
+  const { source, pattern, reason } = readGroundLight(ground);
+  if ( reason ) return { lit: false, reason };
+
+  const actor = item.parent;
+  if ( getLightEffect(actor) ) return { lit: false, reason: PICKUP_REASONS.OCCUPIED };
+
+  await createLightEffect(actor, source, pattern, {
+    mode: ground.mode,
+    expiresAtWorld: ground.expiresAtWorld,
+    expiresAtReal: ground.expiresAtReal
+  }, { stowed: !!source.coverable && hidden, itemId: item.id });
+  return { lit: true, reason: null };
+}
+
+/**
+ * Put a light out when the Item it burns on leaves its actor — deleted from a sheet,
+ * dragged to another actor, handed away by another module. Without this the token
+ * would go on glowing with nothing left to glow with. A light that moves *with* its
+ * Item has already left the actor by the time the Item goes (see `dropItemLight`), so
+ * this finds nothing to do then.
+ *
+ * `deleteItem` fires on every client; only the one that deleted the Item acts, and it
+ * can, because deleting an embedded Item already required owning the actor.
+ * @param {Item} item The deleted Item.
+ * @param {object} options The deletion options.
+ * @param {string} userId The id of the user who deleted it.
+ * @returns {void}
+ */
+export function onDeleteItem(item, options, userId) {
+  if ( (userId !== game.user.id) || (item.parent?.documentName !== "Actor") ) return;
+  if ( getActiveLight(item.parent)?.itemId !== item.id ) return;
+  deactivateLight(item.parent).catch(err => console.error(`${MODULE_ID} | Could not put out the light of a removed item`, err));
 }
 
 /**
@@ -425,15 +604,10 @@ export async function pickupLight(actor, light) {
   // copy of a flame still lying on the map. `removeAmbientLight` reports the cause.
   if ( !removed ) return;
 
-  const source = getSources().find(s => s.id === ground.sourceId);
-  const pattern = source?.patterns?.find(p => p.id === ground.patternId);
-  if ( !source || !pattern ) {
-    ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.PickupSourceGone", { item: ground.itemName }));
-    return;
-  }
-
-  if ( isExpired(ground, Date.now()) ) {
-    ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.PickupBurnedOut", { item: ground.itemName }));
+  const { source, pattern, reason } = readGroundLight(ground);
+  if ( reason ) {
+    const key = reason === PICKUP_REASONS.BURNED_OUT ? "LIGHTSOURCES.Hud.PickupBurnedOut" : "LIGHTSOURCES.Hud.PickupSourceGone";
+    ui.notifications.warn(game.i18n.format(key, { item: ground.itemName }));
     return;
   }
 
@@ -441,7 +615,7 @@ export async function pickupLight(actor, light) {
     mode: ground.mode,
     expiresAtWorld: ground.expiresAtWorld,
     expiresAtReal: ground.expiresAtReal
-  }, { stowed: !!source.coverable && hidden });
+  }, { stowed: !!source.coverable && hidden, itemId: burningItemId(actor, source) });
 
   await ChatMessage.implementation.createDocuments([
     buildLightMessage(
@@ -496,16 +670,19 @@ async function removeAmbientLight(sceneId, lightId) {
 /**
  * Create the AmbientLight document. Runs on a GM client — directly for a GM user,
  * or on the active GM after a socket relay from a player.
+ *
+ * `keepId` keeps the `_id` the dropping client minted (see `buildGroundLightData`), so
+ * that client can name this light again without ever having seen the document.
  * @param {string} sceneId The id of the scene to place the light on.
- * @param {object} lightData The AmbientLight creation data ({x, y, config, flags}).
+ * @param {object} lightData The AmbientLight creation data ({_id, x, y, config, flags}).
  * @returns {Promise<boolean>} True when the light was created, false when the scene
- *   no longer exists.
+ *   no longer exists or a pre-create hook refused it.
  */
 async function createAmbientLight(sceneId, lightData) {
   const scene = game.scenes.get(sceneId);
   if ( !scene ) return false;
-  await scene.createEmbeddedDocuments("AmbientLight", [lightData]);
-  return true;
+  const [created] = await scene.createEmbeddedDocuments("AmbientLight", [lightData], { keepId: true });
+  return !!created;
 }
 
 /**

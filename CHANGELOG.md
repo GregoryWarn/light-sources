@@ -1,3 +1,19 @@
+# Unreleased
+
+### Added
+
+* **Other modules can carry a lit light to the ground with its item.** Two new API functions, `dropLightWithItem` and `pickupGroundLight`, let a module that moves items between sheets and the map (loot, a thrown lantern) take the light along. The light lands where the item lands and comes back with the burn time it had left. See [the API docs](docs/register-sources-api.md#droplightwithitemitem-where).
+
+### Changed
+
+* **A lit light belongs to the item that burns.** A light from a source that doesn't consume its item now remembers which item it is. `getActive` reports it as `itemId`.
+
+### Fixed
+
+* **Removing a lit item puts its light out.** Deleting a lit lantern from a sheet, or dragging it to another actor, used to leave the token glowing until the timer ran out.
+* **A player dropping a light with no GM connected keeps it.** The light was put out on the token before the module found out there was no GM to place it on the ground, so it vanished. The light now stays on the token and the player is told a GM is needed.
+
+
 # 0.1.2
 
 ### Added

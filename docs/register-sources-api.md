@@ -242,10 +242,72 @@ Reads what is currently burning on an actor.
 
 ```js
 const light = game.lightSources.getActive(actor);
-// → null, or { sourceId, patternId, patternName, itemName, mode, expiresAtWorld, expiresAtReal, stowed }
+// → null, or { sourceId, patternId, patternName, itemName, itemId, mode, expiresAtWorld, expiresAtReal, stowed }
 ```
 
 Returns the active light payload, or `null` when the actor has no light lit. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
+
+`itemId` is the id of the carried Item that is burning. Only a `consume: false` source has one: a consuming source spent its item to light the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out.
+
+---
+
+## `dropLightWithItem(item, where)`
+
+Moves the light burning on an Item's actor to the ground, together with that Item. It is meant for a module that carries Items off actors and onto the map, such as loot or a thrown lantern.
+
+```js
+const light = await game.lightSources.dropLightWithItem(item, {
+  scene, x, y, elevation: 0, levels: [levelId], managedBy: "my-module"
+});
+if ( light ) { /* keep light.id with your own document */ }
+await item.delete();
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `item` | `Item` | The Item about to leave its actor. **Still on the actor when called.** |
+| `where.scene` | `Scene` | The scene it lands on. It doesn't have to be the one being viewed. |
+| `where.x`, `where.y` | `number` | The light's centre. Rounded to integers. |
+| `where.elevation` | `number` | Optional, `0` by default. |
+| `where.levels` | `string[]` | Optional ids of the scene levels it belongs to, `[]` by default. |
+| `where.managedBy` | `string` | The id of your module or system. **Required.** |
+
+Returns `Promise<AmbientLightDocument | null>`: the placed light, or `null` when nothing moved. Nothing moves unless `item` is the very Item the light burns on (its `itemId`). A rope leaving while a lantern burns moves nothing, and a light from a `consume: true` source never moves.
+
+**Call it before removing the Item.** Removing a burning Item puts its light out, so once the Item is gone there is nothing left to move.
+
+**GM client only.** Only a GM can create an AmbientLight, and you need the created document back. On any other client it logs a warning and returns `null`. Run it where a player's request is already handled on the GM, such as a `CONFIG.queries` handler.
+
+**What happens to the light.** It burns out on its original schedule. While `managedBy` is active, this module leaves it out of its own Token HUD pickup and interactive control: your module hands it back. If your module is disabled, the light becomes an ordinary ground light that any token can pick up from the HUD. Nothing is posted to chat.
+
+The flame is never in two places and never in none. The light is placed first and only then put out on the actor. If putting it out fails, the placed light is removed again.
+
+---
+
+## `pickupGroundLight(item, light)`
+
+Puts a light placed by `dropLightWithItem` back on the actor carrying `item`. It burns on that Item with the time it had left.
+
+```js
+const { lit, reason } = await game.lightSources.pickupGroundLight(item, light);
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `item` | `Item` | The Item the light returns with, **already on the picking actor**: newly created, or the stack it merged into. |
+| `light` | `AmbientLightDocument` | The light `dropLightWithItem` returned. |
+
+Returns `Promise<{ lit: boolean, reason: string | null }>`. Once the light is found it always leaves the ground, even when it cannot be relit. When `lit` is `false`, `reason` says why:
+
+| `reason` | Meaning |
+| :--- | :--- |
+| `"missing"` | The light is no longer on the scene: it burned out and was swept, or a GM deleted it. |
+| `"sourceRemoved"` | Its light source was deleted from the configuration. |
+| `"burnedOut"` | It burned out while it lay on the ground. |
+| `"occupied"` | The actor already has a light burning. That light is never replaced. The Item arrives unlit and can be lit again from the Token HUD, which costs nothing because only `consume: false` lights travel this way. |
+| `"invalid"` | The call was refused: not a GM client, an Item not on an actor, or a light not placed by `dropLightWithItem`. |
+
+**GM client only, and silent.** No chat message and no notification: the GM's client is rarely the one whose user picked the Item up. Tell your own user from `reason`, for example by returning it from your query handler.
 
 ---
 

@@ -6,9 +6,9 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, SETTINGS, DURATION_MODES } from "./constants.js";
+import { MODULE_ID, SETTINGS, FLAGS, DURATION_MODES, PICKUP_REASONS } from "./constants.js";
 import { getSources, setSources, makePattern, getItemTypes, getActorTypes, getQuantityPath } from "./helpers.js";
-import { activateLight, deactivateLight, getActiveLight } from "./light-manager.js";
+import { activateLight, deactivateLight, getActiveLight, dropItemLight, pickupItemLight } from "./light-manager.js";
 
 /**
  * The usage fields a caller supplies, with the API's documented defaults filled
@@ -247,4 +247,87 @@ export async function deactivate(actor) {
  */
 export function getActive(actor) {
   return getActiveLight(actor);
+}
+
+/**
+ * Move the light burning on an Item's actor to the ground, together with that Item —
+ * for a module that carries Items off actors and onto the map (loot, a thrown
+ * lantern). The light moves only when `item` is the very Item it burns on: a lit
+ * lantern leaving takes its flame, a rope leaving takes nothing, and a light lit
+ * from a consuming source never moves, since the item it spent is not the flame.
+ *
+ * Call it while `item` is still on its actor, then remove the Item. Removing it first
+ * puts its light out, as any removal of a burning Item does.
+ *
+ * GM client only: only a GM can create an AmbientLight, and the caller needs the
+ * created document back, which the player socket relay cannot return. The placed
+ * light is left out of this module's Token HUD pickup and interactive control while
+ * `managedBy` is active, burns out on its original schedule, and is handed back with
+ * `pickupGroundLight`. Nothing is posted to chat.
+ * @param {Item} item The Item about to leave its actor.
+ * @param {object} where Where the light lands.
+ * @param {Scene} where.scene The scene, which need not be the one being viewed.
+ * @param {number} where.x The x coordinate of the light's centre.
+ * @param {number} where.y The y coordinate of the light's centre.
+ * @param {number} [where.elevation=0] The light's elevation.
+ * @param {string[]} [where.levels=[]] The ids of the scene levels it belongs to.
+ * @param {string} where.managedBy The id of the calling module or system.
+ * @returns {Promise<AmbientLightDocument|null>} The placed light, or null when nothing moved.
+ */
+export async function dropLightWithItem(item, { scene, x, y, elevation = 0, levels = [], managedBy } = {}) {
+  if ( !game.user.isGM ) {
+    console.warn(`${MODULE_ID} | dropLightWithItem runs on a GM client only.`);
+    return null;
+  }
+  if ( (item?.documentName !== "Item") || (item.parent?.documentName !== "Actor") ) {
+    console.warn(`${MODULE_ID} | dropLightWithItem expected an Item still on its actor.`, item);
+    return null;
+  }
+  if ( (scene?.documentName !== "Scene") || !Number.isFinite(x) || !Number.isFinite(y)
+    || !Number.isFinite(elevation) || !Array.isArray(levels) ) {
+    console.warn(`${MODULE_ID} | dropLightWithItem expected a scene and a finite x, y and elevation.`);
+    return null;
+  }
+  if ( !managedBy || (typeof managedBy !== "string") ) {
+    console.warn(`${MODULE_ID} | dropLightWithItem expected the calling package's id as managedBy.`);
+    return null;
+  }
+  return dropItemLight(item, scene, { x, y, elevation, levels }, managedBy);
+}
+
+/**
+ * Put a light placed by `dropLightWithItem` back on the actor carrying `item`,
+ * burning on that Item with the time it had left. Call it once `item` is on the
+ * picking actor — newly created, or the stack it merged into.
+ *
+ * The light always leaves the ground once found, even when it cannot be relit. A
+ * light already burning on the actor is never replaced: the picked-up one stays unlit
+ * and the Item can light it again from the Token HUD, for free, since only
+ * non-consuming lights travel this way.
+ *
+ * GM client only, and silent: no chat and no notification, because the GM's client is
+ * rarely the one whose user picked the Item up. The returned `reason` is for the
+ * caller to tell its own user: `"missing"` (already gone from the scene),
+ * `"sourceRemoved"`, `"burnedOut"`, `"occupied"`, or `"invalid"` for a refused call.
+ * @param {Item} item The Item the light returns with, already on the picking actor.
+ * @param {AmbientLightDocument} light The ground light `dropLightWithItem` returned.
+ * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the actor is now lit, and why not.
+ */
+export async function pickupGroundLight(item, light) {
+  const refused = { lit: false, reason: PICKUP_REASONS.INVALID };
+  if ( !game.user.isGM ) {
+    console.warn(`${MODULE_ID} | pickupGroundLight runs on a GM client only.`);
+    return refused;
+  }
+  if ( (item?.documentName !== "Item") || (item.parent?.documentName !== "Actor") ) {
+    console.warn(`${MODULE_ID} | pickupGroundLight expected an Item on the picking actor.`, item);
+    return refused;
+  }
+  // Only a light placed through the API: a Token HUD drop may be a consuming torch,
+  // and the pickup's promise that nothing of value is lost holds for none of those.
+  if ( (light?.documentName !== "AmbientLight") || !light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT)?.managedBy ) {
+    console.warn(`${MODULE_ID} | pickupGroundLight expected a light placed by dropLightWithItem.`, light);
+    return refused;
+  }
+  return pickupItemLight(item, light);
 }

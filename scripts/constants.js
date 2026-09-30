@@ -44,21 +44,45 @@ export const SETTINGS = {
 /**
  * Flag keys stored under the MODULE_ID scope.
  * - `EFFECT_LIGHT`: marks the ActiveEffect this module creates to drive a token's
- *   light, and carries its bookkeeping payload ({sourceId, itemName, mode,
- *   expiresAtWorld, expiresAtReal}).
+ *   light, and carries its bookkeeping payload ({sourceId, patternId, patternName,
+ *   itemName, itemId, mode, expiresAtWorld, expiresAtReal}). `itemId` is the carried
+ *   Item that is burning, or null when no item is (a consuming source spent it, a
+ *   free-for-all source has none); older effects lack it and count as null.
  * - `GROUND_LIGHT`: marks an AmbientLight dropped by an actor (as opposed to one
  *   the GM placed by hand) and carries what is needed to light it again on a token
  *   ({sourceId, patternId, patternName, itemName, actorUuid, mode, expiresAtWorld,
- *   expiresAtReal}). Without it a dropped light is indistinguishable from scenery.
+ *   expiresAtReal, managedBy}). Without it a dropped light is indistinguishable from
+ *   scenery. `managedBy` names the module that placed it through the API and hands it
+ *   back itself; absent for a light dropped from the Token HUD.
  * - `INTERACTIVE`: set on an AmbientLight the players may switch on and off from the
  *   map. The GM sets it per light in the native light config; lights dropped by a
- *   player get it automatically.
+ *   player get it automatically. A light another module manages keeps the flag but
+ *   gets no control while that module is active (see `isManagedElsewhere`).
  * @type {{EFFECT_LIGHT: string, GROUND_LIGHT: string, INTERACTIVE: string}}
  */
 export const FLAGS = {
   EFFECT_LIGHT: "light",
   GROUND_LIGHT: "groundLight",
   INTERACTIVE: "interactive"
+};
+
+/**
+ * Why the public `pickupGroundLight` left the actor unlit, returned to the caller as
+ * `reason` instead of shown as a notification: it runs on the GM's client, inside
+ * whatever request the caller is serving, so only the caller can tell the right user.
+ * - `INVALID`: the call itself was refused (not a GM client, or bad arguments).
+ * - `MISSING`: the light is no longer on the scene.
+ * - `SOURCE_REMOVED`: its light source was deleted from the config meanwhile.
+ * - `BURNED_OUT`: it burned out while it lay on the ground.
+ * - `OCCUPIED`: the actor already has a light burning, which is never replaced.
+ * @type {{INVALID: string, MISSING: string, SOURCE_REMOVED: string, BURNED_OUT: string, OCCUPIED: string}}
+ */
+export const PICKUP_REASONS = {
+  INVALID: "invalid",
+  MISSING: "missing",
+  SOURCE_REMOVED: "sourceRemoved",
+  BURNED_OUT: "burnedOut",
+  OCCUPIED: "occupied"
 };
 
 /**

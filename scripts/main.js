@@ -11,8 +11,10 @@ import { LightSourcesConfig } from "./light-sources-config.js";
 import { CompatibilityConfig } from "./compatibility-config.js";
 import { registerTokenHudHooks } from "./token-hud.js";
 import { registerInteractiveLightHooks } from "./interactive-lights.js";
-import { startExpiryTicker, sweepExpiredLights, handleSocketMessage } from "./light-manager.js";
-import { registerSources, registerCompatibility, activate, deactivate, getActive } from "./api.js";
+import { startExpiryTicker, sweepExpiredLights, handleSocketMessage, onDeleteItem } from "./light-manager.js";
+import {
+  registerSources, registerCompatibility, activate, deactivate, getActive, dropLightWithItem, pickupGroundLight
+} from "./api.js";
 
 Hooks.once("init", () => {
   // Seed the compatibility settings from the active system's preset (if any) so
@@ -103,7 +105,9 @@ Hooks.once("ready", () => {
   // the GM drag-and-drop UI. Exposed both via Foundry's formal module.api and a
   // convenience `game.lightSources` alias. Assigned in `ready` so settings are
   // available and compendium UUIDs can be resolved by callers.
-  const api = { registerSources, registerCompatibility, activate, deactivate, getActive };
+  const api = {
+    registerSources, registerCompatibility, activate, deactivate, getActive, dropLightWithItem, pickupGroundLight
+  };
   game.modules.get(MODULE_ID).api = api;
   game.lightSources = api;
 });
@@ -113,6 +117,9 @@ Hooks.once("ready", () => {
 Hooks.on("updateWorldTime", () => {
   sweepExpiredLights().catch(err => console.error(`${MODULE_ID} | World-time expiry check failed`, err));
 });
+
+// A light burning on an Item goes out when that Item leaves its actor.
+Hooks.on("deleteItem", onDeleteItem);
 
 registerTokenHudHooks();
 registerInteractiveLightHooks();

@@ -1,5 +1,19 @@
 # A lit light is tied to the item that burns, and another module can carry it to the ground
 
+## Departures
+
+- `moveLightToGround` also checks that the actor's effect is actually gone after `deactivateLight`.
+  A `preDeleteActiveEffect` hook returning `false` cancels the deletion without throwing, and the
+  shape's try/catch alone would have left the flame both on the token and on the ground. Observed:
+  with such a hook, `dropLightWithItem` returns null, the token stays lit, and no light is left.
+- The invariant "a managed light still burns out" held only on the ticker's next tick (≤ 15 s),
+  not on the `updateWorldTime` sweep. That sweep threw `id … does not exist in the
+  EmbeddedCollection`: overlapping sweeps (and core's own `duration.expired` update of the same
+  effect, `CONFIG.ActiveEffect.expiryAction = "update"`) delete an effect twice, and the
+  throw aborts that tick before the ground lights are swept. This is older than this plan and
+  happens with Token HUD lights too, so it is not fixed here. It is the only console error seen,
+  and it comes from `sweepExpiredLights`, which this plan does not touch.
+
 A non-consuming light records which Item is burning. That one fact lets the public API move the
 flame to the ground together with that exact Item and hand it back with the time it has left, and
 lets the module put the light out when the burning Item leaves the actor by any other route. The
@@ -164,5 +178,3 @@ Observed in a `claude-*` world through `foundry-playwright`.
 
 - No other open plan in this repo (`ls plans/`, 2026-09-29).
 - **Blocks** `canvas-loot/plans/light-sources-integration/`, which calls both functions.
-
-## Departures
