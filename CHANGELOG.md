@@ -1,8 +1,8 @@
-# Unreleased
+# 0.2.0
 
 ### Added
 
-* **Other modules can carry a lit light to the ground with its item.** Two new API functions, `dropLightWithItem` and `pickupGroundLight`, let a module that moves items between sheets and the map (loot, a thrown lantern) take the light along. The light lands where the item lands and comes back with the burn time it had left. See [the API docs](docs/register-sources-api.md#droplightwithitemitem-where).
+* **Other modules can carry a lit light to the ground with its item.** Two new API functions, `dropLightWithItem` and `pickupGroundLight`, let a module that moves items between sheets and the map (loot, a thrown lantern) take the light along. The light lands where the item lands and comes back with the burn time it had left. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#droplightwithitemitem-where).
 
 ### Changed
 
