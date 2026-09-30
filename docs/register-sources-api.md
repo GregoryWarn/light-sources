@@ -178,7 +178,7 @@ Two limits follow from the module's one-light-per-actor rule, and neither change
 #### Dropping
 Any lit light can be dropped on the ground as an AmbientLight from the Token HUD. Dropping **relocates the burning light** — it does not spend an item, whatever the source's `consume` value: a consuming source already paid when it was lit, and a non-consuming one never pays at all. The control appears only on the entry that is currently lit, since there is nothing to relocate otherwise.
 
-A dropped light is a plain AmbientLight with no further ties to the module: it does not inherit the source's remaining duration, it never burns out, and it cannot be picked back up. Register a source with a duration expecting it to expire on the ground and it will not.
+A dropped light keeps the schedule it had on the token. It burns out on its own when its time is up, announced in chat, and a token standing on it or on a square beside it can pick it back up from the Token HUD. The flame returns with only the time it has left, and nothing is spent. Lights placed by another module through [`dropLightWithItem`](#droplightwithitemitem-where) are handed back by that module instead, not from the Token HUD.
 
 `freeForAll` sources are droppable too, but because nothing backs them they could be lit and dropped without limit. The GM world setting **Allow Dropping Free for All Lights** (on by default) gates that; it does not affect item-based sources, which are always droppable while lit. There is no per-source way to opt out of dropping — do not register a source expecting drop to remove it from inventory.
 
@@ -313,17 +313,20 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. Once the light is fo
 
 ## Chat Announcements
 
-The module posts its own styled chat card for three light events, on every source regardless of how it was registered:
+The module posts its own styled chat card for these light events, on every source regardless of how it was registered:
 
 | Event | Announced |
 | :--- | :--- |
 | The source is lit | ✅ Names the actor and the source. With more than one pattern, names the pattern too. |
-| A lit light is dropped | ✅ Only once the light actually reaches the ground. |
-| A duration runs out | ✅ Posted by the active GM's expiry sweep. |
+| A lit light is dropped from the Token HUD | ✅ Only once the light actually reaches the ground. |
+| A dropped light is picked back up from the Token HUD | ✅ |
+| A duration runs out, on a token or on the ground | ✅ Posted by the active GM's expiry sweep. |
+| A light is extinguished | ❌ Silent. |
 | Switching between a source's patterns | ❌ Silent — the same flame is being reshaped, not lit. |
 | Covering or uncovering a light | ❌ Silent — nothing was lit or put out, mirroring extinguishing. |
+| `dropLightWithItem` and `pickupGroundLight` | ❌ Silent — the calling module tells its own users. |
 
-There is currently no per-source way to opt out of these announcements.
+The world setting **Announce Lights in Chat** turns off the "lit" card. The other cards always post, and there is no per-source way to opt out.
 
 ---
 

@@ -19,7 +19,7 @@ And then the table stops. The GM alt-tabs to the token settings, types a dim rad
 ## ✨ Key Features
 
 * 🔦 **One-click lighting.** Select a token, click the flame button on the Token HUD, and pick from the light sources available to that character. That's it.
-* 🎒 **Uses the real inventory.** Only items the character actually owns show up (plus any "Free for All" sources the GM has enabled — see below). Lighting a torch can subtract it from the sheet, so a torch you burn is a torch you no longer have.
+* 🎒 **Uses the real inventory.** Only items the character actually owns show up (plus any "Free for All" sources the GM has enabled — see below). Lighting a torch can subtract it from the sheet, so a torch you burn is a torch you no longer have. A lantern that isn't used up belongs to the item that burns: if it leaves the sheet while lit (deleted, given to another character, carried off by another module), its light goes out with it.
 * ⏳ **Lights burn out on their own.** Give a source a duration and it goes out by itself when the time runs out — with a message in chat announcing it. No timers to babysit. Pick how each source counts down: **in-game time** (it burns as the GM advances the world clock — three real hours of chatter won't waste a torch) or **real time** (it burns in real-world minutes even while the game is paused or the player is offline). Hover the flame button on the Token HUD to see what's burning and how much of it is left — no clutter on the map, just the number when you ask for it.
 * 🎨 **A look for every flame.** Each source gets its own light pattern: radius, angle, color, brightness and animation. A candle should feel nothing like a bullseye lantern, and here it doesn't.
 * 🌑 **Darkness, too.** Tick **Darkness Source** on a pattern and it sheds darkness instead of light — the area inside its radius gets dimmer, not brighter. Everything else works the same: it burns down, it can be dropped, it can be picked back up. A single item can even carry one light pattern and one darkness pattern side by side.
@@ -36,7 +36,7 @@ And then the table stops. The GM alt-tabs to the token settings, types a dim rad
 * 🗺️ **The light follows the character.** It stays with them across scenes, and blowing it out restores exactly the token lighting they had before.
 * 💬 **Chat announcements.** Lighting a source, dropping it on the ground, picking it back up and burning out each post a styled chat card, so the table always knows who has light and who just lost it. Switching between a source's own patterns stays quiet — that's the same flame reshaped, not a new one. Lighting announcements can be turned off entirely in the world settings if your table finds them noisy. You can also send any registered light source to chat as a draggable card — drop it on an actor sheet to add it to their inventory.
 * 🔒 **GM-only mode.** A world setting locks the Token HUD's light controls to the GM alone — players still see what's lit, but activating, extinguishing, dropping and picking up sources becomes the GM's call.
-* 🔌 **Developer API.** Module and system developers can [programmatically register light sources](docs/register-sources-api.md) from their own code — no manual drag-and-drop needed. Registered sources merge seamlessly with the GM's hand-picked ones. They can also **light a source from code**, for lights whose cost isn't an item — a spell slot, a fatigue token, anything only the system knows how to charge — and keep such a source **out of the Token HUD**, so the light only ever comes through the system's own cast.
+* 🔌 **Developer API.** Module and system developers can [programmatically register light sources](docs/register-sources-api.md) from their own code — no manual drag-and-drop needed. Registered sources merge seamlessly with the GM's hand-picked ones. They can also **light a source from code**, for lights whose cost isn't an item — a spell slot, a fatigue token, anything only the system knows how to charge — and keep such a source **out of the Token HUD**, so the light only ever comes through the system's own cast. A module that moves items between sheets and the map, such as loot, can **carry a lit lantern to the ground and back** with its item.
 
 ## 🛠️ How to Use
 
@@ -69,7 +69,7 @@ Optional per-source toggles on the config window:
 There are also a few world settings under **Game Settings → Configure Settings → Light Sources**:
 * **Allow Dropping Free for All Lights** (on by default) — whether a lit Free-for-All light can be dropped on the ground. No item backs these sources, so dropping one costs nothing and can be repeated without limit; turn this off if you'd rather free lights stayed on tokens. Lights that come from a carried item are always droppable.
 * **Restrict Light Control to the GM** (off by default) — when enabled, only the GM can activate, extinguish, drop or pick up a light source from the Token HUD. Players still see the flame menu and what's currently lit, but their clicks on those controls are refused.
-* **Announce Lights in Chat** (on by default) — turn off to stop lighting a source from posting the "lights it" chat card. Extinguishing, dropping, picking up and burning out keep announcing regardless.
+* **Announce Lights in Chat** (on by default) — turn off to stop lighting a source from posting the "lights it" chat card. Dropping, picking up and burning out keep announcing regardless.
 
 Tip: select a token on the canvas while you edit — you'll watch the light change on the map in real time.
 
@@ -139,6 +139,8 @@ Hooks.once("ready", async () => {
 Registered sources appear in the Token HUD and in the GM's configuration window with a badge showing which module manages them.
 
 The same API can **light a registered source from code** — `game.lightSources.activate(actor, uuid)` — with the same consumption, duration and chat announcement a Token HUD click would have, plus `deactivate(actor)` and `getActive(actor)`. Pair it with the **Hide from Token HUD** toggle (or `hudHidden: true` when registering) for a light whose cost is a spell slot or similar: the system charges it, then lights it, and the player can't skip the charge from the palette.
+
+A module that carries items off a sheet and onto the map can take a lit light along with the item: `dropLightWithItem(item, where)` places the light where the item lands, and `pickupGroundLight(item, light)` hands it back with the burn time it had left. See [the API docs](docs/register-sources-api.md#droplightwithitemitem-where).
 
 Registered values are **defaults, not locks**: once the GM edits one of these sources it stops being overwritten, and a **Restore Module Default** control puts it back — either for the whole source, or for a single light pattern. See the [Register Sources API docs](docs/register-sources-api.md#gm-customization-important) for the full contract.
 
