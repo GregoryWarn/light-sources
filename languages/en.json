@@ -148,6 +148,7 @@
       "PickupBurnedOut": "The {item} had already burned out before it was picked up.",
       "NoGm": "No GM is connected to place the light. Ask a GM to log in and try again.",
       "NoItem": "{name} no longer carries {item}.",
+      "OnGround": "The light of {item} is lying on the ground. Pick it up instead of lighting it again.",
       "GmOnly": "Only the GM can control light sources."
     },
     "Interactive": {

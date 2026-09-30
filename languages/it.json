@@ -148,6 +148,7 @@
       "PickupBurnedOut": "{item} si era già esaurita prima di essere raccolta.",
       "NoGm": "Nessun GM è connesso per posizionare la luce. Chiedi a un GM di effettuare l'accesso e riprova.",
       "NoItem": "{name} non possiede più {item}.",
+      "OnGround": "La luce di {item} si trova a terra. Raccoglila invece di accenderla di nuovo.",
       "GmOnly": "Solo il GM può controllare le fonti di luce."
     },
     "Interactive": {

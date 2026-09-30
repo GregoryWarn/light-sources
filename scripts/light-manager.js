@@ -214,16 +214,25 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
  * Pay for lighting `source` on `actor`, and say which carried Item the flame burns on.
  * The flame leaves its Item only when a copy of that Item was spent. A lantern, and an
  * object whose charge was spent, go on being the light. A free-for-all source has no
- * item at all. When several items match, the first is the one lit — the same item the
- * Token HUD lists first.
+ * item at all. When several items match, the first whose flame is not already lying
+ * on the ground is the one lit.
  * @param {Actor} actor The actor being lit.
  * @param {object} source The registered light source definition.
  * @returns {Promise<{itemId: string|null}|null>} Where the flame burns, or null when
- *   refused because nothing carried can pay (a warning has been shown).
+ *   refused because nothing carried can pay, or because the flame of every matching
+ *   item lies on the ground (a warning has been shown).
  */
 async function payForLight(actor, source) {
   if ( source.freeForAll ) return { itemId: null };
-  const item = findMatchingItems(actor, source)[0];
+  const matches = findMatchingItems(actor, source);
+  // A "copy" flame never belongs to its Item, so the stack can go on lighting copies
+  // while earlier ones lie on the ground.
+  const onGround = (source.consume === CONSUME_MODES.COPY) ? new Set() : itemsWithLightOnGround(actor);
+  const item = matches.find(i => !onGround.has(i.id));
+  if ( matches.length && !item ) {
+    ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.OnGround", { item: source.name }));
+    return null;
+  }
   // A "none" source lights without an item, as 0.2.0 did through the API (a spell's
   // light, say); only a source that spends needs something to spend.
   if ( source.consume === CONSUME_MODES.NONE ) return { itemId: item?.id ?? null };
@@ -256,13 +265,38 @@ async function spendOne(actor, item, mode) {
 }
 
 /**
+ * The ids of an actor's Items whose light lies on the ground, on any scene. Such an Item is
+ * not lit again: its flame already exists and is waiting to be picked up. A light that burns
+ * out or is removed from the ground frees its Item with it.
+ *
+ * Read on whichever client lights, often a player's: every client holds every scene's
+ * AmbientLights, including a scene that player cannot see.
+ * @param {Actor} actor The actor about to light.
+ * @returns {Set<string>} Item ids.
+ */
+function itemsWithLightOnGround(actor) {
+  const ids = new Set();
+  for ( const scene of game.scenes ) {
+    for ( const light of scene.lights ) {
+      const ground = light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT);
+      if ( ground?.itemId && (ground.actorUuid === actor.uuid) ) ids.add(ground.itemId);
+    }
+  }
+  return ids;
+}
+
+/**
  * The carried Item a light picked up from the ground burns on (nothing is spent).
+ * The actor that dropped it gets it back on the Item it burned on. Anyone else binds it
+ * to what they carry, because an Item id means something only on its own actor.
  * @param {Actor} actor The actor picking the light up.
  * @param {object} source The registered light source definition.
+ * @param {object} ground The light's `GROUND_LIGHT` payload.
  * @returns {string|null} The Item's id, or null when no carried item is the light.
  */
-function bindOnPickup(actor, source) {
+function bindOnPickup(actor, source, ground) {
   if ( source.freeForAll || (source.consume === CONSUME_MODES.COPY) ) return null;
+  if ( (ground.actorUuid === actor.uuid) && actor.items.has(ground.itemId) ) return ground.itemId;
   // Past the count: a torch whose last charge lit this flame is at 0, and is still the torch.
   return findMatchingItems(actor, source, { anyCount: true })[0]?.id ?? null;
 }
@@ -287,8 +321,9 @@ function bindOnPickup(actor, source) {
  *   consumption and duration are shared across all of them, only the emitted
  *   light shape differs.
  * @returns {Promise<boolean>} True when the source is now lit. False when it was
- *   refused — the actor no longer carries the item a consuming source needs. The
- *   Token HUD ignores this; the public `activate` API reports it to its caller.
+ *   refused — the actor no longer carries the item a spending source needs, or the
+ *   item's flame is lying on the ground. The Token HUD ignores this; the public
+ *   `activate` API reports it to its caller.
  */
 export async function activateLight(actor, source, pattern) {
   // Matched on the source alone, not the pattern: a source's patterns are ways for
@@ -378,9 +413,11 @@ export async function setLightStowed(actor, stowed) {
  * Drop the light burning on a token as a standalone AmbientLight on the scene:
  * the lit light moves from the token to the ground. Dropping only ever relocates
  * an already-active light, so it never consumes and never refunds an item —
- * spending is entirely activation's business (see `activateLight`). A consuming
- * source already paid for this light when it was lit; a non-consuming source
- * never pays at all. Re-lighting afterwards is a deliberate, manual action.
+ * spending is entirely activation's business (see `activateLight`). A source that
+ * spends already paid for this light when it was lit; a `"none"` source never pays
+ * at all. The Item the flame burned on stays with the actor, and is not lit again
+ * while its flame lies on the ground (see `payForLight`). Re-lighting afterwards is a
+ * deliberate, manual action.
  * The light is placed at the token's center using the given pattern's light data,
  * and announced in chat once it is down.
  *
@@ -447,6 +484,9 @@ function buildGroundLightData(actor, source, pattern, active, managedBy = null) 
     patternName: pattern.name,
     itemName: source.name,
     actorUuid: actor.uuid,
+    // The Item the flame burned on, so it is not lit a second time while this lies
+    // here (see `payForLight`), and the pickup hands the flame back to it.
+    itemId: active.itemId ?? null,
     mode: active.mode,
     expiresAtWorld: active.expiresAtWorld,
     expiresAtReal: active.expiresAtReal
@@ -654,7 +694,7 @@ export async function pickupLight(actor, light) {
     mode: ground.mode,
     expiresAtWorld: ground.expiresAtWorld,
     expiresAtReal: ground.expiresAtReal
-  }, { stowed: !!source.coverable && hidden, itemId: bindOnPickup(actor, source) });
+  }, { stowed: !!source.coverable && hidden, itemId: bindOnPickup(actor, source, ground) });
 
   await ChatMessage.implementation.createDocuments([
     buildLightMessage(

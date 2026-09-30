@@ -56,10 +56,13 @@ export const SETTINGS = {
  *   free-for-all source has none); older effects lack it and count as null.
  * - `GROUND_LIGHT`: marks an AmbientLight dropped by an actor (as opposed to one
  *   the GM placed by hand) and carries what is needed to light it again on a token
- *   ({sourceId, patternId, patternName, itemName, actorUuid, mode, expiresAtWorld,
- *   expiresAtReal, managedBy}). Without it a dropped light is indistinguishable from
- *   scenery. `managedBy` names the module that placed it through the API and hands it
- *   back itself; absent for a light dropped from the Token HUD.
+ *   ({sourceId, patternId, patternName, itemName, actorUuid, itemId, mode,
+ *   expiresAtWorld, expiresAtReal, managedBy}). Without it a dropped light is
+ *   indistinguishable from scenery. `itemId` is the Item the flame burned on, as on
+ *   `EFFECT_LIGHT`; while it lies there, that Item of `actorUuid` is not lit again.
+ *   Older lights lack it and count as null. `managedBy` names the module that placed
+ *   it through the API and hands it back itself; absent for a light dropped from the
+ *   Token HUD.
  * - `INTERACTIVE`: set on an AmbientLight the players may switch on and off from the
  *   map. The GM sets it per light in the native light config; lights dropped by a
  *   player get it automatically. A light another module manages keeps the flag but

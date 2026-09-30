@@ -8,6 +8,10 @@
 
 * **`consume` says what lighting spends.** The API and the stored sources take `"none"` or `"copy"` instead of `false` or `true`. An API entry with any other value is skipped with a console warning. There is no migration: a source stored with the old boolean lights without spending until it is registered again or opened in the editor and saved. The editor shows a select instead of a checkbox.
 
+### Fixed
+
+* **A light set down from the Token HUD can't be lit a second time.** A lantern put down and lit again used to give two lights from one lantern. Picking the light back up now returns it to the item it came from.
+
 
 # 0.2.0
 
