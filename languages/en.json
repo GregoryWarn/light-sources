@@ -159,6 +159,9 @@
       "GroundExpiredTitle": "Light Burns Out",
       "GroundExpired": "The {item} left on the ground burns out.",
       "DragHint": "Drag onto an Actor sheet to add it to their inventory."
+    },
+    "Effect": {
+      "ExpiryEvent": "Light Sources burns it out"
     }
   }
 }

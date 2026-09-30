@@ -95,8 +95,8 @@ export const SOCKET_EVENT = `module.${MODULE_ID}`;
 
 /**
  * How a light source counts down its duration.
- * - `world`: tied to `game.time.worldTime` (the in-game clock) via the effect's
- *   native duration — the light goes out when the GM advances the clock past it.
+ * - `world`: tied to `game.time.worldTime` (the in-game clock) — the light goes out
+ *   when the GM advances the clock past it, and the effect shows its native duration.
  * - `real`: tied to real-world wall-clock time via a polling ticker — the light
  *   burns down even while the game is paused or the owner is disconnected.
  * @type {{WORLD: string, REAL: string}}
@@ -174,6 +174,16 @@ export const DEFAULT_LIGHT = {
     reverse: false
   }
 };
+
+/**
+ * The expiry event a light's ActiveEffect is stamped with, registered in
+ * `CONFIG.ActiveEffect.expiryEvents`. Core never fires a package's own event, so it
+ * leaves these effects to this module's expiry sweep. With the default `expiry: null`
+ * core expires an effect on *any* event, and on every clock advance it wrote
+ * `duration.expired` to the same effect the sweep was deleting.
+ * @type {string}
+ */
+export const EXPIRY_EVENT = `${MODULE_ID}.burnOut`;
 
 /**
  * How often (in milliseconds) the active GM client checks for expired lights.

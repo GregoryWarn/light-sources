@@ -7,7 +7,8 @@
  */
 
 import {
-  MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS, PICKUP_REASONS
+  MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS, EXPIRY_EVENT,
+  PICKUP_REASONS
 } from "./constants.js";
 import {
   findMatchingItems, buildLightMessage, getItemQuantity, getQuantityPath, getSources, getAnnounceLit
@@ -19,6 +20,13 @@ import {
  * @type {number|null}
  */
 let tickerId = null;
+
+/**
+ * The expiry sweep last asked for, which every new one waits behind (see
+ * `sweepExpiredLights`).
+ * @type {Promise<void>}
+ */
+let sweepQueue = Promise.resolve();
 
 /**
  * Get the ActiveEffect this module uses to drive an Actor's light, if any.
@@ -159,18 +167,19 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
   const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT)).map(e => e.id);
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale);
 
-  // World-time lights use the effect's native duration so the light reverts the
-  // instant the game clock passes the expiry, on every client. Real-time lights
-  // keep an indefinite native duration (advancing the clock must not affect them)
-  // and are extinguished by the real-time ticker. `expiry: null` makes the native
-  // duration expire purely on elapsed time rather than on a combat turn boundary.
+  // World-time lights carry a native duration, so the effect shows how long the
+  // light has left like any other timed effect. Real-time lights keep an indefinite
+  // native duration (advancing the clock must not affect them). Either way the
+  // expiry sweep is what puts a light out: `expiry` names this module's own event,
+  // which core never fires, so core's effect registry leaves the effect alone
+  // instead of writing to it while the sweep deletes it (see `EXPIRY_EVENT`).
   // The length is derived from the absolute stamp rather than from the source's
   // configured minutes, so a light picked back up finishes only what it has left.
   // Counted in seconds, not minutes: `duration.value` is an integer field, and what
   // is left of a part-spent light is rarely a whole number of minutes.
   const remaining = timing.expiresAtWorld != null ? timing.expiresAtWorld - game.time.worldTime : null;
   const duration = remaining != null
-    ? { value: Math.max(0, Math.round(remaining)), units: "seconds", expiry: null }
+    ? { value: Math.max(0, Math.round(remaining)), units: "seconds", expiry: EXPIRY_EVENT }
     : { value: null };
 
   // This effect is system-agnostic: every piece below is core Foundry v14, not
@@ -817,32 +826,59 @@ function collectExpired(actor, now) {
  * player is connected. Triggered both by the real-time ticker (for real-time lights)
  * and by the `updateWorldTime` hook (for in-game-time lights). Expired lights are
  * deleted and announced in chat; they are never re-lit or re-consumed.
+ *
+ * Sweeps run one at a time, in the order they were asked for. The ticker and each
+ * clock advance ask independently, and two sweeps overlapping collect the same
+ * lights, so the second deleted what the first already had and threw — and a throw
+ * ended that sweep before it reached the lights on the ground.
  * @returns {Promise<void>}
  */
-export async function sweepExpiredLights() {
+export function sweepExpiredLights() {
+  const sweep = () => sweepOnce();
+  return (sweepQueue = sweepQueue.then(sweep, sweep));
+}
+
+/**
+ * One pass of `sweepExpiredLights`.
+ * @returns {Promise<void>}
+ */
+async function sweepOnce() {
   if ( game.users.activeGM !== game.user ) return;
   const now = Date.now();
   const messages = [];
 
   // Lights burning on a token.
-  const expired = [];
-  for ( const actor of game.actors ) expired.push(...collectExpired(actor, now));
+  const collected = [];
+  for ( const actor of game.actors ) collected.push(...collectExpired(actor, now));
 
   // Unlinked tokens keep their effect on a synthetic actor, not in game.actors.
   for ( const scene of game.scenes ) {
     for ( const token of scene.tokens ) {
       if ( token.actorLink || !token.actor ) continue;
-      expired.push(...collectExpired(token.actor, now));
+      collected.push(...collectExpired(token.actor, now));
     }
   }
 
-  // Group deletions per actor (embedded documents have distinct parents).
+  // Group deletions per actor (embedded documents have distinct parents). Each actor
+  // is deleted on its own, so one that fails keeps neither the others nor the lights
+  // on the ground burning. Only what is still there is deleted: another client may
+  // have put a light out since it was collected, by extinguishing it or removing its item.
   const byActor = new Map();
-  for ( const { actor, id } of expired ) {
-    if ( !byActor.has(actor) ) byActor.set(actor, []);
-    byActor.get(actor).push(id);
+  for ( const entry of collected ) {
+    if ( !byActor.has(entry.actor) ) byActor.set(entry.actor, []);
+    byActor.get(entry.actor).push(entry);
   }
-  for ( const [actor, ids] of byActor ) await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
+  const expired = [];
+  for ( const [actor, entries] of byActor ) {
+    const live = entries.filter(({ id }) => actor.effects.has(id));
+    if ( !live.length ) continue;
+    try {
+      await actor.deleteEmbeddedDocuments("ActiveEffect", live.map(({ id }) => id));
+      expired.push(...live);
+    } catch(err) {
+      console.error(`${MODULE_ID} | Could not put out the burned-out light of ${actor.name}`, err);
+    }
+  }
 
   messages.push(...expired.map(({ actor, itemName }) => buildLightMessage(
     actor,
@@ -861,7 +897,12 @@ export async function sweepExpiredLights() {
       if ( flag && isExpired(flag, now) ) burnedOut.push({ light, flag });
     }
     if ( !burnedOut.length ) continue;
-    await scene.deleteEmbeddedDocuments("AmbientLight", burnedOut.map(({ light }) => light.id));
+    try {
+      await scene.deleteEmbeddedDocuments("AmbientLight", burnedOut.map(({ light }) => light.id));
+    } catch(err) {
+      console.error(`${MODULE_ID} | Could not remove the burned-out lights on ${scene.name}`, err);
+      continue;
+    }
     messages.push(...burnedOut.map(({ flag }) => buildLightMessage(
       // The actor is only the speaker here; a dropped light outlives its owner's
       // token being deleted, so a missing actor just yields a generic speaker.

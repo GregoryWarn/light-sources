@@ -6,7 +6,7 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, SETTINGS, SOCKET_EVENT, SYSTEM_PRESETS } from "./constants.js";
+import { MODULE_ID, SETTINGS, SOCKET_EVENT, SYSTEM_PRESETS, EXPIRY_EVENT } from "./constants.js";
 import { LightSourcesConfig } from "./light-sources-config.js";
 import { CompatibilityConfig } from "./compatibility-config.js";
 import { registerTokenHudHooks } from "./token-hud.js";
@@ -17,6 +17,9 @@ import {
 } from "./api.js";
 
 Hooks.once("init", () => {
+  // Registered in init: core caches the list of expiry events the first time it reads it.
+  CONFIG.ActiveEffect.expiryEvents[EXPIRY_EVENT] = "LIGHTSOURCES.Effect.ExpiryEvent";
+
   // Seed the compatibility settings from the active system's preset (if any) so
   // known systems work out of the box; unknown systems start fully unconfigured.
   const preset = SYSTEM_PRESETS[game.system.id] ?? {};
