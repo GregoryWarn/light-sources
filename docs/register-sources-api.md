@@ -123,7 +123,7 @@ Each object in the `entries` array describes a single light source:
       }
     }
   ],
-  consume: boolean,          // Optional – subtract one from the item's quantity when lit; the only moment an item is ever spent (default: false)
+  consume: string,           // Optional – what lighting spends: "none" or "copy" (default: "none")
   freeForAll: boolean,       // Optional – any actor of an Actor-Types-enabled type can light this, no inventory item needed (default: false)
   coverable: boolean,        // Optional – the light can be covered instead of ended, keeping its remaining duration (default: false)
   hudHidden: boolean,        // Optional – never offered in the Token HUD; lit only through activate() (default: false)
@@ -145,11 +145,11 @@ A source can have **multiple light patterns** — different ways the same item e
 Consumption and duration are shared across all patterns of the same source; only the emitted light shape differs. Moving between the patterns of the light already burning reshapes that flame in place: nothing is spent, the countdown keeps running from when the source was first lit, and nothing is announced in chat. A player can therefore switch a lantern between "Low" and "High" freely, and can still switch after burning the last item in the stack.
 
 #### `consume`
-When `true`, **lighting** the source subtracts one from the matching item's quantity, using the quantity path configured in the module's compatibility settings. Activation is the *only* moment an item is ever spent — dropping a lit light on the ground never consumes and never refunds (see [Dropping](#dropping)). A `consume: false` source therefore never touches inventory at any point.
+What **lighting** the source spends. `"none"` (the default) spends nothing: the item is the light, like a lantern. `"copy"` subtracts one from the matching item's quantity, using the quantity path configured in the module's compatibility settings: the item is a stack of identical lights, and one copy becomes the flame. Activation is the *only* moment an item is ever spent — dropping a lit light on the ground never consumes and never refunds (see [Dropping](#dropping)). A `consume: "none"` source therefore never touches inventory at any point. An entry with any other value is skipped, with a console warning.
 
 Items are matched by `_stats.compendiumSource` (the origin UUID core stamps on a copy made from a compendium), falling back to name + type, so a source keeps working after a player renames the item on their sheet or a translation module renames it. The fallback only fires when the item has no matching origin, so a system that creates items outside core's compendium import — a character creator, a shop, a starting kit — should stamp `_stats.compendiumSource` with the pack entry's UUID on each copy it makes; otherwise those items are matched by name alone.
 
-Quantity only gates a source that spends it. For `consume: true`, an item whose quantity has reached 0 stops matching (though the source stays listed in the HUD while its light is still burning, so it can still be extinguished or dropped). For `consume: false` the quantity is never read, so the item matches at any value — including 0, and including a quantity path that does not resolve on that item at all. That is what lets a reusable tool be a light source in a system where the configured path is optional per item: without it, no value of `quantityPath` can make a consumable torch burn down *and* a permanent lantern appear.
+Quantity only gates a source that spends it. For `consume: "copy"`, an item whose quantity has reached 0 stops matching (though the source stays listed in the HUD while its light is still burning, so it can still be extinguished or dropped). For `consume: "none"` the quantity is never read, so the item matches at any value — including 0, and including a quantity path that does not resolve on that item at all. That is what lets a reusable tool be a light source in a system where the configured path is optional per item: without it, no value of `quantityPath` can make a consumable torch burn down *and* a permanent lantern appear.
 
 #### `negative`
 A pattern with `negative: true` is a **darkness source**: it dims the area inside its radii instead of revealing it, using core's own `LightData#negative`. Everything else about the pattern works unchanged — radii, angle, color, intensity, duration and consumption all behave the same, and extinguishing restores the token's own light exactly as it does for a normal pattern.
@@ -176,7 +176,7 @@ Two limits follow from the module's one-light-per-actor rule, and neither change
 - **A covered light dropped on the ground stays covered**, using the AmbientLight's native `hidden` state — the same state the map control switches. Picking it back up returns it covered. This applies only to `coverable` sources: a torch snuffed on the floor and picked up lights normally, exactly as it always did.
 
 #### Dropping
-Any lit light can be dropped on the ground as an AmbientLight from the Token HUD. Dropping **relocates the burning light** — it does not spend an item, whatever the source's `consume` value: a consuming source already paid when it was lit, and a non-consuming one never pays at all. The control appears only on the entry that is currently lit, since there is nothing to relocate otherwise.
+Any lit light can be dropped on the ground as an AmbientLight from the Token HUD. Dropping **relocates the burning light** — it does not spend an item, whatever the source's `consume` value: a `"copy"` source already paid when it was lit, and a `"none"` one never pays at all. The control appears only on the entry that is currently lit, since there is nothing to relocate otherwise.
 
 A dropped light keeps the schedule it had on the token. It burns out on its own when its time is up, announced in chat, and a token standing on it or on a square beside it can pick it back up from the Token HUD. The flame returns with only the time it has left, and nothing is spent. Lights placed by another module through [`dropLightWithItem`](#droplightwithitemitem-where) are handed back by that module instead, not from the Token HUD.
 
@@ -195,7 +195,7 @@ When `true`, the source is **never offered in the Token HUD palette** while it i
 
 A source that is currently lit is always listed, `hudHidden` or not, because that row is what carries the extinguish, drop and cover controls. So the practical behaviour is: invisible while off, appears the moment something lights it, disappears again when it is put out.
 
-This pairs with `consume: false` in most cases — the module is not charging anything, the caller already did.
+This pairs with `consume: "none"` in most cases — the module is not charging anything, the caller already did.
 
 ---
 
@@ -214,11 +214,11 @@ const lit = await game.lightSources.activate(actor, sourceUuid, { pattern: "Narr
 | `uuid` | `string` | The registered source's `uuid`, or its internal `id`. A source the GM added by name has no uuid and is reachable only by id. |
 | `options.pattern` | `string` | Name of the pattern to light. Defaults to the source's first pattern. |
 
-Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: true` source's item is no longer carried.
+Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: "copy"` source's item is no longer carried.
 
 **Ownership.** Foundry refuses embedded document creation on an actor the current user does not own, so from a player's client this reaches their own character and nothing else; from the GM's client it reaches anyone. This is checked up front and reported as `false` rather than left to throw. There is deliberately **no relay** that would let one player light a light on another player's actor — routing that through the GM would mean any client could ask the GM to write ActiveEffects onto any actor, which is a larger permission surface than this module is willing to open. If your system needs to light someone else's character, run that part of the flow on the GM's client.
 
-**Consumption is not bypassed.** `activate` spends exactly what a HUD click would. A caller that wants no consumption should register the source with `consume: false`.
+**Consumption is not bypassed.** `activate` spends exactly what a HUD click would. A caller that wants no consumption should register the source with `consume: "none"`.
 
 **The Restrict Player Control setting does not apply.** That world setting gates the Token HUD palette; this path is not the palette. Whatever charged the light has already run, and a caller can only ever reach an actor it already owns.
 
@@ -247,7 +247,7 @@ const light = game.lightSources.getActive(actor);
 
 Returns the active light payload, or `null` when the actor has no light lit. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
 
-`itemId` is the id of the carried Item that is burning. Only a `consume: false` source has one: a consuming source spent its item to light the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out.
+`itemId` is the id of the carried Item that is burning. Only a `consume: "none"` source has one: a `"copy"` source turned one of its items into the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out.
 
 ---
 
@@ -272,7 +272,7 @@ await item.delete();
 | `where.levels` | `string[]` | Optional ids of the scene levels it belongs to, `[]` by default. |
 | `where.managedBy` | `string` | The id of your module or system. **Required.** |
 
-Returns `Promise<AmbientLightDocument | null>`: the placed light, or `null` when nothing moved. Nothing moves unless `item` is the very Item the light burns on (its `itemId`). A rope leaving while a lantern burns moves nothing, and a light from a `consume: true` source never moves.
+Returns `Promise<AmbientLightDocument | null>`: the placed light, or `null` when nothing moved. Nothing moves unless `item` is the very Item the light burns on (its `itemId`). A rope leaving while a lantern burns moves nothing, and a light from a `consume: "copy"` source never moves.
 
 **Call it before removing the Item.** Removing a burning Item puts its light out, so once the Item is gone there is nothing left to move.
 
@@ -304,7 +304,7 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. Once the light is fo
 | `"missing"` | The light is no longer on the scene: it burned out and was swept, or a GM deleted it. |
 | `"sourceRemoved"` | Its light source was deleted from the configuration. |
 | `"burnedOut"` | It burned out while it lay on the ground. |
-| `"occupied"` | The actor already has a light burning. That light is never replaced. The Item arrives unlit and can be lit again from the Token HUD, which costs nothing because only `consume: false` lights travel this way. |
+| `"occupied"` | The actor already has a light burning. That light is never replaced. The Item arrives unlit and can be lit again from the Token HUD, which costs nothing because only `consume: "none"` lights travel this way. |
 | `"invalid"` | The call was refused: not a GM client, an Item not on an actor, or a light not placed by `dropLightWithItem`. |
 
 **GM client only, and silent.** No chat message and no notification: the GM's client is rarely the one whose user picked the Item up. Tell your own user from `reason`, for example by returning it from your query handler.
@@ -400,7 +400,7 @@ Hooks.once("ready", async () => {
           }
         }
       ],
-      consume: true,
+      consume: "copy",
       durationMode: "world",
       durationMinutes: 60
     },
@@ -430,7 +430,7 @@ Hooks.once("ready", async () => {
           }
         }
       ],
-      consume: true,
+      consume: "copy",
       durationMode: "world",
       durationMinutes: 240
     },
@@ -449,7 +449,7 @@ Hooks.once("ready", async () => {
           }
         }
       ],
-      consume: false,
+      consume: "none",
       freeForAll: true,
       coverable: true,
       durationMinutes: 0
@@ -471,7 +471,7 @@ Hooks.once("ready", async () => {
           }
         }
       ],
-      consume: false,
+      consume: "none",
       hudHidden: true,
       durationMode: "world",
       durationMinutes: 600

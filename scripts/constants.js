@@ -107,6 +107,18 @@ export const DURATION_MODES = {
 };
 
 /**
+ * What lighting a source spends from the carried Item.
+ * - `none`: nothing; the Item is the light (a lantern).
+ * - `copy`: one copy of a stack, through the quantity path; the copy becomes the flame,
+ *   which no longer belongs to the stack.
+ * @type {{NONE: string, COPY: string}}
+ */
+export const CONSUME_MODES = {
+  NONE: "none",
+  COPY: "copy"
+};
+
+/**
  * Priority assigned to every `token.light.*` ActiveEffect change. Matches the
  * core default priority of the `override` change type; kept explicit so the
  * change sort in `TokenDocument#applyActiveEffects` is always well-defined.

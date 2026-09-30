@@ -6,7 +6,7 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DEFAULT_SOURCE_IMG, DURATION_MODES, CHAT_CARD_ACCENT } from "./constants.js";
+import { MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DEFAULT_SOURCE_IMG, DURATION_MODES, CONSUME_MODES, CHAT_CARD_ACCENT } from "./constants.js";
 import { getSources, setSources, makePattern, buildChatCard, getItemTypes } from "./helpers.js";
 import { LightSourceEditor } from "./light-editor.js";
 
@@ -70,6 +70,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       patternLabel: source.patterns.length > 1
         ? game.i18n.format("LIGHTSOURCES.Config.Patterns", { count: source.patterns.length })
         : null,
+      consumeLabel: source.consume === CONSUME_MODES.COPY ? game.i18n.localize("LIGHTSOURCES.Config.ConsumeCopy") : null,
       // Only a source registered through the API has a module default behind it;
       // one the GM added by hand has nothing to restore to. The control is then
       // rendered for all of them but stays inert until the GM edits one, so the
@@ -137,7 +138,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       name: item.name,
       img: item.img,
       type: item.type,
-      consume: false,
+      consume: CONSUME_MODES.NONE,
       freeForAll: false,
       coverable: false,
       hudHidden: false,
@@ -190,7 +191,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       name,
       img: DEFAULT_SOURCE_IMG,
       type: null,
-      consume: false,
+      consume: CONSUME_MODES.NONE,
       freeForAll: false,
       coverable: false,
       hudHidden: false,

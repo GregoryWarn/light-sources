@@ -130,7 +130,11 @@
   <div class="form-group">
     <label>{{localize "LIGHTSOURCES.LightEditor.Fields.Consume"}}</label>
     <div class="form-fields">
-      <input type="checkbox" name="consume" {{checked source.consume}}>
+      <select name="consume">
+        {{#each consumeModes}}
+        <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{localize this.label}}</option>
+        {{/each}}
+      </select>
     </div>
     <p class="hint">{{localize "LIGHTSOURCES.LightEditor.Fields.ConsumeHint"}}</p>
   </div>

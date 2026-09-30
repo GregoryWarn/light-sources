@@ -7,7 +7,7 @@
  */
 
 import {
-  MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS, EXPIRY_EVENT,
+  MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, CONSUME_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS, EXPIRY_EVENT,
   PICKUP_REASONS
 } from "./constants.js";
 import {
@@ -210,9 +210,10 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
 }
 
 /**
- * The carried Item a newly lit light burns on, if any. Only a non-consuming source's
- * item *is* the light: a consuming source spent one unit to light a flame that is no
- * longer among what the actor carries, and a free-for-all source has no item at all.
+ * The carried Item a newly lit light burns on, if any. Only the item of a source that
+ * does not spend a copy *is* the light: a source that spends a copy turned one unit
+ * into a flame that is no longer among what the actor carries, and a free-for-all
+ * source has no item at all.
  * When several copies match, the first is the one lit — the same item the Token HUD
  * lists first.
  * @param {Actor} actor The actor being lit.
@@ -220,7 +221,7 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
  * @returns {string|null} The burning Item's id, or null when no carried item is the light.
  */
 function burningItemId(actor, source) {
-  if ( source.consume || source.freeForAll ) return null;
+  if ( (source.consume === CONSUME_MODES.COPY) || source.freeForAll ) return null;
   return findMatchingItems(actor, source)[0]?.id ?? null;
 }
 
@@ -256,7 +257,7 @@ export async function activateLight(actor, source, pattern) {
     return true;
   }
 
-  if ( source.consume && !source.freeForAll ) {
+  if ( (source.consume === CONSUME_MODES.COPY) && !source.freeForAll ) {
     const item = findMatchingItems(actor, source)[0];
     if ( !item ) {
       ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.NoItem", { name: actor.name, item: source.name }));

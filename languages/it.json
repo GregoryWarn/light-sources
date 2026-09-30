@@ -51,7 +51,7 @@
       "Unlimited": "Illimitata",
       "Minutes": "{minutes} min",
       "Patterns": "{count} schemi",
-      "Consumed": "Consumato all'utilizzo",
+      "ConsumeCopy": "Consuma una copia",
       "FreeForAll": "Gratuita",
       "Coverable": "Può essere coperta",
       "ManagedByTooltip": "Registrata da un sistema o modulo esterno: {name}",
@@ -103,8 +103,12 @@
         "Speed": "Velocità dell'animazione",
         "Intensity": "Intensità dell'animazione",
         "Reverse": "Inverti direzione",
-        "Consume": "Consuma all'utilizzo",
-        "ConsumeHint": "Quando abilitato, l'attivazione di questa fonte di luce riduce di 1 la quantità dell'oggetto. L'oggetto rimane nell'inventario anche quando la quantità raggiunge zero, ma non è più disponibile per illuminare. La luce non viene mai consumata nuovamente automaticamente.",
+        "Consume": "L'accensione consuma",
+        "ConsumeModes": {
+          "none": "Niente",
+          "copy": "Una copia dell'oggetto"
+        },
+        "ConsumeHint": "Cosa toglie all'oggetto l'accensione di questa fonte. Niente: l'oggetto è la luce, come una lanterna o una lama luminosa. Una copia: l'oggetto è una pila di luci identiche, come cinque torce; una copia diventa la fiamma e non appartiene più alla pila. Solo l'accensione consuma: cambiare schema, lasciare a terra e raccogliere non consumano mai.",
         "Coverable": "Può essere coperta",
         "CoverableHint": "Aggiunge un comando Riponi accanto a Lascia a terra nell'HUD del token, coprendo la fonte di luce invece di terminarla: smette di illuminare ma continua a consumarsi e può essere scoperta in seguito con il tempo rimanente. È pensato per una luce che rappresenta un incantesimo su un oggetto anziché una fiamma — un trucchetto Luce lanciato su un sassolino viene riposto in tasca, non spento. Disabilita questa opzione per torce e lanterne.",
         "Duration": "Durata (minuti)",

@@ -1,3 +1,10 @@
+# Unreleased
+
+### Changed
+
+* **`consume` says what lighting spends.** The API and the stored sources take `"none"` or `"copy"` instead of `false` or `true`. An API entry with any other value is skipped with a console warning. There is no migration: a source stored with the old boolean lights without spending until it is registered again or opened in the editor and saved. The editor shows a select instead of a checkbox.
+
+
 # 0.2.0
 
 ### Added

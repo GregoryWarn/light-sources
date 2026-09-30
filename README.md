@@ -55,7 +55,7 @@ And then the table stops. The GM alt-tabs to the token settings, types a dim rad
 
      ![Configuring a light pattern](docs/config-light-source.webp)
 
-   * **Consumption** — whether lighting it uses one up, how many minutes it burns before dying out (`0` = burns forever until put out by hand), and whether that countdown runs on the **in-game clock** or on **real time**.
+   * **Consumption** — what lighting it spends: nothing, or one from a stack, how many minutes it burns before dying out (`0` = burns forever until put out by hand), and whether that countdown runs on the **in-game clock** or on **real time**.
 
      ![Configuring consumption](docs/consumption.webp)
 
@@ -128,7 +128,7 @@ Hooks.once("ready", async () => {
       patterns: [
         { name: "Standard", light: { dim: 40, bright: 20, color: "#ff8800", animation: { type: "torch", speed: 5, intensity: 5 } } }
       ],
-      consume: true,
+      consume: "copy",
       durationMode: "world",
       durationMinutes: 60
     }

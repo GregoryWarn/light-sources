@@ -6,7 +6,7 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, SETTINGS, FLAGS, DURATION_MODES, PICKUP_REASONS } from "./constants.js";
+import { MODULE_ID, SETTINGS, FLAGS, DURATION_MODES, CONSUME_MODES, PICKUP_REASONS } from "./constants.js";
 import { getSources, setSources, makePattern, getItemTypes, getActorTypes, getQuantityPath } from "./helpers.js";
 import { activateLight, deactivateLight, getActiveLight, dropItemLight, pickupItemLight } from "./light-manager.js";
 
@@ -15,11 +15,11 @@ import { activateLight, deactivateLight, getActiveLight, dropItemLight, pickupIt
  * in. Also snapshotted onto the source as `moduleDefaults`, so restoring returns
  * what the module wants *now* rather than what it asked for on first registration.
  * @param {object} entry The caller's light source definition.
- * @returns {{consume: boolean, freeForAll: boolean, coverable: boolean, hudHidden: boolean, durationMode: string, durationMinutes: number}} The usage fields.
+ * @returns {{consume: string, freeForAll: boolean, coverable: boolean, hudHidden: boolean, durationMode: string, durationMinutes: number}} The usage fields.
  */
 function usageFields(entry) {
   return {
-    consume: entry.consume ?? false,
+    consume: entry.consume ?? CONSUME_MODES.NONE,
     freeForAll: entry.freeForAll ?? false,
     coverable: entry.coverable ?? false,
     hudHidden: entry.hudHidden ?? false,
@@ -103,6 +103,10 @@ export async function registerSources(entries, { managedBy = null } = {}) {
   for ( const entry of entries ) {
     if ( !entry?.uuid || !Array.isArray(entry.patterns) ) {
       console.warn(`${MODULE_ID} | Skipping light source entry missing a uuid or patterns array.`, entry);
+      continue;
+    }
+    if ( (entry.consume !== undefined) && !Object.values(CONSUME_MODES).includes(entry.consume) ) {
+      console.warn(`${MODULE_ID} | Skipping light source "${entry.uuid}": consume must be one of ${Object.values(CONSUME_MODES).join(", ")}.`, entry);
       continue;
     }
 

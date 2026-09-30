@@ -6,7 +6,7 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DURATION_MODES, RANGE_PRESETS, DURATION_PRESETS } from "./constants.js";
+import { MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DURATION_MODES, CONSUME_MODES, RANGE_PRESETS, DURATION_PRESETS } from "./constants.js";
 import { getSources, setSources, makePattern } from "./helpers.js";
 import { buildLightData } from "./light-manager.js";
 
@@ -343,7 +343,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const source = this.source
-      ?? { patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))], consume: false, coverable: false, durationMode: DURATION_MODES.WORLD, durationMinutes: 0 };
+      ?? { patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))], consume: CONSUME_MODES.NONE, coverable: false, durationMode: DURATION_MODES.WORLD, durationMinutes: 0 };
     const patterns = this.#draftPatterns ?? source.patterns;
     context.source = source;
     context.tabs = this._prepareTabs("primary");
@@ -369,6 +369,9 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       { value: DURATION_MODES.WORLD, label: "LIGHTSOURCES.LightEditor.Fields.DurationModeWorld", selected: mode === DURATION_MODES.WORLD },
       { value: DURATION_MODES.REAL, label: "LIGHTSOURCES.LightEditor.Fields.DurationModeReal", selected: mode === DURATION_MODES.REAL }
     ];
+    context.consumeModes = Object.values(CONSUME_MODES).map(value => ({
+      value, label: `LIGHTSOURCES.LightEditor.Fields.ConsumeModes.${value}`, selected: source.consume === value
+    }));
     context.durationPresets = this.#buildPresetOptions(source.durationMinutes, DURATION_PRESETS);
     return context;
   }
@@ -486,7 +489,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     const source = sources.find(s => s.id === this.options.sourceId);
     if ( !source ) return;
 
-    source.consume = !!data.consume;
+    source.consume = Object.values(CONSUME_MODES).includes(data.consume) ? data.consume : CONSUME_MODES.NONE;
     source.coverable = !!data.coverable;
     source.durationMode = data.durationMode === DURATION_MODES.REAL ? DURATION_MODES.REAL : DURATION_MODES.WORLD;
     source.durationMinutes = Math.max(0, Math.round(Number(data.durationMinutes) || 0));

@@ -6,7 +6,7 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, SETTINGS, FLAGS, CHAT_CARD_BG, CHAT_CARD_ACCENT } from "./constants.js";
+import { MODULE_ID, SETTINGS, FLAGS, CONSUME_MODES, CHAT_CARD_BG, CHAT_CARD_ACCENT } from "./constants.js";
 
 /**
  * Build a light pattern: a uniquely-identified, named light configuration. A
@@ -147,10 +147,10 @@ export function listDocumentTypes(documentName) {
  * (and, when the source has a `type`, that type too — a name-only source has
  * no type and matches by name alone).
  *
- * Quantity gates only a source that spends what it matches. For a consuming
- * source, an item worn down to 0 is excluded: it is kept in the inventory rather
+ * Quantity gates only a source that spends what it matches. For a source that
+ * spends a copy, an item worn down to 0 is excluded: it is kept in the inventory rather
  * than deleted, but stops being available for consumption or display in the Token
- * HUD. A non-consuming source never reads the number, so its item matches at any
+ * HUD. Any other source never reads the number, so its item matches at any
  * quantity — which is what lets a reusable tool (a lantern, a glowing blade) work
  * in a system where the configured path is optional per item and rests at 0.
  * Items whose quantity cannot be determined (no quantity path configured) are
@@ -164,7 +164,7 @@ export function findMatchingItems(actor, source) {
   const available = item => {
     // "Empty" and "not a light source" are different questions: only the item that
     // will actually be spent is gated on its quantity.
-    if ( !source.consume ) return true;
+    if ( source.consume !== CONSUME_MODES.COPY ) return true;
     const quantity = getItemQuantity(item);
     return !Number.isFinite(quantity) || (quantity > 0);
   };

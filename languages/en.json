@@ -51,7 +51,7 @@
       "Unlimited": "Unlimited",
       "Minutes": "{minutes} min",
       "Patterns": "{count} patterns",
-      "Consumed": "Consumed on use",
+      "ConsumeCopy": "Spends a copy",
       "FreeForAll": "Free for all",
       "Coverable": "Can be covered",
       "ManagedByTooltip": "Registered by an external system or module: {name}",
@@ -103,8 +103,12 @@
         "Speed": "Animation Speed",
         "Intensity": "Animation Intensity",
         "Reverse": "Reverse Direction",
-        "Consume": "Consume on Use",
-        "ConsumeHint": "When enabled, activating this light reduces the item quantity by 1. The item stays in the inventory even at zero quantity, but is no longer available to light. The light is never re-consumed automatically.",
+        "Consume": "Lighting Spends",
+        "ConsumeModes": {
+          "none": "Nothing",
+          "copy": "One copy of the item"
+        },
+        "ConsumeHint": "What lighting this source takes from the item. Nothing: the item is the light, like a lantern or a glowing blade. One copy: the item is a stack of identical lights, like five torches; one copy turns into the flame and no longer belongs to the stack. Only lighting spends: switching patterns, dropping and picking up never do.",
         "Coverable": "Can Be Covered",
         "CoverableHint": "Adds a Stow control beside Drop in the Token HUD, covering the light instead of ending it: it stops shining but keeps burning down, and can be uncovered later with whatever time it has left. Meant for a light that is a spell on an object rather than a flame — a Light cantrip on a pebble is pocketed, not snuffed. Leave off for torches and lanterns.",
         "Duration": "Duration (minutes)",
