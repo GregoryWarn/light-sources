@@ -149,6 +149,7 @@
       "NoGm": "No GM is connected to place the light. Ask a GM to log in and try again.",
       "NoItem": "{name} no longer carries {item}.",
       "OnGround": "The light of {item} is lying on the ground. Pick it up instead of lighting it again.",
+      "Refused": "{item} could not be lit on {name}: the game system or another module refused the light effect.",
       "GmOnly": "Only the GM can control light sources."
     },
     "Interactive": {

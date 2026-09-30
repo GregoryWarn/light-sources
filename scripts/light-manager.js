@@ -159,9 +159,11 @@ function isExpired(flag, now) {
  *   burns down without shining (see `setLightStowed`). Used when picking a light
  *   back up that was lying on the ground switched off.
  * @param {string|null} [options.itemId=null] The carried Item that is burning (see
- *   `payForLight`). Recorded so the light can leave with that exact Item, and go
+ *   `choosePayment`). Recorded so the light can leave with that exact Item, and go
  *   out when it leaves any other way (see `onDeleteItem`).
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} True when the effect was created. False when the game
+ *   system or another module refused it in a pre-create step, which resolves without
+ *   throwing: PF2e refuses every actor effect but its own "dead" overlay.
  */
 async function createLightEffect(actor, source, pattern, timing, { stowed = false, itemId = null } = {}) {
   // Only one light effect at a time: remove any previous one (switching sources / re-lighting).
@@ -191,7 +193,7 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
   // `system.changes`. The change shape validates on a vanilla-core world and on
   // any system that doesn't hostilely narrow the base changes schema (some
   // systems reshape it but keep the same shape + the `override` mode).
-  await actor.createEmbeddedDocuments("ActiveEffect", [{
+  const [created] = await actor.createEmbeddedDocuments("ActiveEffect", [{
     name: source.name,
     img: source.img,
     type: "base",
@@ -208,22 +210,25 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
       ...timing
     } } }
   }]);
+  return !!created;
 }
 
 /**
- * Pay for lighting `source` on `actor`, and say which carried Item the flame burns on.
- * The flame leaves its Item only when a copy of that Item was spent. A lantern, and an
- * object whose charge was spent, go on being the light. A free-for-all source has no
- * item at all. When several items match, the first whose flame is not already lying
- * on the ground is the one lit.
+ * Choose what lighting `source` on `actor` spends, and say which carried Item the flame
+ * burns on. The flame leaves its Item only when a copy of that Item is spent. A lantern,
+ * and an object whose charge is spent, go on being the light. A free-for-all source has
+ * no item at all. When several items match, the first whose flame is not already lying
+ * on the ground is the one lit. Nothing is spent here: `activateLight` spends only once
+ * the light exists.
  * @param {Actor} actor The actor being lit.
  * @param {object} source The registered light source definition.
- * @returns {Promise<{itemId: string|null}|null>} Where the flame burns, or null when
- *   refused because nothing carried can pay, or because the flame of every matching
- *   item lies on the ground (a warning has been shown).
+ * @returns {{item: Item|null, itemId: string|null}|null} The Item to spend one of (null
+ *   when nothing is spent) and the Item the flame burns on; or null when refused because
+ *   nothing carried can pay, or because the flame of every matching item lies on the
+ *   ground (a warning has been shown).
  */
-async function payForLight(actor, source) {
-  if ( source.freeForAll ) return { itemId: null };
+function choosePayment(actor, source) {
+  if ( source.freeForAll ) return { item: null, itemId: null };
   const matches = findMatchingItems(actor, source);
   // A "copy" flame never belongs to its Item, so the stack can go on lighting copies
   // while earlier ones lie on the ground.
@@ -235,15 +240,14 @@ async function payForLight(actor, source) {
   }
   // A "none" source lights without an item, as 0.2.0 did through the API (a spell's
   // light, say); only a source that spends needs something to spend.
-  if ( source.consume === CONSUME_MODES.NONE ) return { itemId: item?.id ?? null };
+  if ( source.consume === CONSUME_MODES.NONE ) return { item: null, itemId: item?.id ?? null };
   if ( !item ) {
     ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.NoItem", { name: actor.name, item: source.name }));
     return null;
   }
-  await spendOne(actor, item, source.consume);
-  // Captured before the spend: the last charge takes the Item to 0, which hides it from
+  // Chosen before the spend: the last charge takes the Item to 0, which hides it from
   // findMatchingItems, and it is still the Item that burns.
-  return { itemId: source.consume === CONSUME_MODES.COPY ? null : item.id };
+  return { item, itemId: source.consume === CONSUME_MODES.COPY ? null : item.id };
 }
 
 /**
@@ -321,9 +325,10 @@ function bindOnPickup(actor, source, ground) {
  *   consumption and duration are shared across all of them, only the emitted
  *   light shape differs.
  * @returns {Promise<boolean>} True when the source is now lit. False when it was
- *   refused — the actor no longer carries the item a spending source needs, or the
- *   item's flame is lying on the ground. The Token HUD ignores this; the public
- *   `activate` API reports it to its caller.
+ *   refused — the actor no longer carries the item a spending source needs, the
+ *   item's flame is lying on the ground, or the game system refused the light's
+ *   effect. The Token HUD ignores this; the public `activate` API reports it to its
+ *   caller.
  */
 export async function activateLight(actor, source, pattern) {
   // Matched on the source alone, not the pattern: a source's patterns are ways for
@@ -334,9 +339,23 @@ export async function activateLight(actor, source, pattern) {
     return true;
   }
 
-  const paid = await payForLight(actor, source);
-  if ( !paid ) return false;
-  await createLightEffect(actor, source, pattern, buildTiming(source), { itemId: paid.itemId });
+  const payment = choosePayment(actor, source);
+  if ( !payment ) return false;
+  // The light is created before anything is spent, because a system can refuse the effect
+  // without throwing, and a light that never existed must cost nothing and announce nothing.
+  if ( !(await createLightEffect(actor, source, pattern, buildTiming(source), { itemId: payment.itemId })) ) {
+    ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.Refused", { name: actor.name, item: source.name }));
+    return false;
+  }
+  if ( payment.item ) {
+    try {
+      await spendOne(actor, payment.item, source.consume);
+    } catch(err) {
+      // A light that was not paid for does not stay lit.
+      await deactivateLight(actor);
+      throw err;
+    }
+  }
 
   if ( !getAnnounceLit() ) return true;
 
@@ -416,7 +435,7 @@ export async function setLightStowed(actor, stowed) {
  * spending is entirely activation's business (see `activateLight`). A source that
  * spends already paid for this light when it was lit; a `"none"` source never pays
  * at all. The Item the flame burned on stays with the actor, and is not lit again
- * while its flame lies on the ground (see `payForLight`). Re-lighting afterwards is a
+ * while its flame lies on the ground (see `choosePayment`). Re-lighting afterwards is a
  * deliberate, manual action.
  * The light is placed at the token's center using the given pattern's light data,
  * and announced in chat once it is down.
@@ -485,7 +504,7 @@ function buildGroundLightData(actor, source, pattern, active, managedBy = null) 
     itemName: source.name,
     actorUuid: actor.uuid,
     // The Item the flame burned on, so it is not lit a second time while this lies
-    // here (see `payForLight`), and the pickup hands the flame back to it.
+    // here (see `choosePayment`), and the pickup hands the flame back to it.
     itemId: active.itemId ?? null,
     mode: active.mode,
     expiresAtWorld: active.expiresAtWorld,
@@ -625,12 +644,12 @@ export async function pickupItemLight(item, light) {
   const actor = item.parent;
   if ( getLightEffect(actor) ) return { lit: false, reason: LIGHT_REASONS.OCCUPIED };
 
-  await createLightEffect(actor, source, pattern, {
+  const lit = await createLightEffect(actor, source, pattern, {
     mode: ground.mode,
     expiresAtWorld: ground.expiresAtWorld,
     expiresAtReal: ground.expiresAtReal
   }, { stowed: !!source.coverable && hidden, itemId: item.id });
-  return { lit: true, reason: null };
+  return lit ? { lit: true, reason: null } : { lit: false, reason: LIGHT_REASONS.REFUSED };
 }
 
 /**
@@ -658,9 +677,11 @@ export async function moveItemLight(fromItem, toItem) {
   }
   if ( getLightEffect(receiver) ) return { lit: false, reason: LIGHT_REASONS.OCCUPIED };
 
-  await createLightEffect(receiver, source, pattern, {
+  const created = await createLightEffect(receiver, source, pattern, {
     mode: active.mode, expiresAtWorld: active.expiresAtWorld, expiresAtReal: active.expiresAtReal
   }, { stowed: !!source.coverable && active.stowed, itemId: toItem.id });
+  // Refused on the receiver: nothing moved, so the giver keeps its light.
+  if ( !created ) return { lit: false, reason: LIGHT_REASONS.REFUSED };
   try {
     await deactivateLight(giver);
   } catch(err) {
@@ -734,11 +755,17 @@ export async function pickupLight(actor, light) {
     return;
   }
 
-  await createLightEffect(actor, source, pattern, {
+  const lit = await createLightEffect(actor, source, pattern, {
     mode: ground.mode,
     expiresAtWorld: ground.expiresAtWorld,
     expiresAtReal: ground.expiresAtReal
   }, { stowed: !!source.coverable && hidden, itemId: bindOnPickup(actor, source, ground) });
+  // Off the ground and refused on the token, like a light whose source is gone: say so
+  // rather than announce a pickup nobody can see.
+  if ( !lit ) {
+    ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.Refused", { name: actor.name, item: source.name }));
+    return;
+  }
 
   await ChatMessage.implementation.createDocuments([
     buildLightMessage(

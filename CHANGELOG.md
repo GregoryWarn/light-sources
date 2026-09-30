@@ -11,6 +11,7 @@
 
 ### Fixed
 
+* **A light the game system refuses is no longer spent or announced.** Some systems don't let modules add effects to actors. PF2e refuses all of them (#9). Lighting a source there used to spend the item and post the "lit" message while the token stayed dark. Now nothing is spent, nothing is posted, and a warning says the light was refused. `activate` returns `false`, and `pickupGroundLight` and `handOverLight` return the reason `"refused"`. On PF2e the module still can't light anything.
 * **A light set down from the Token HUD can't be lit a second time.** A lantern put down and lit again used to give two lights from one lantern. Picking the light back up now returns it to the item it came from.
 
 

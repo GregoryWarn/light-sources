@@ -331,7 +331,8 @@ export async function dropLightWithItem(item, { scene, x, y, elevation = 0, leve
  * GM client only, and silent: no chat and no notification, because the GM's client is
  * rarely the one whose user picked the Item up. The returned `reason` is for the
  * caller to tell its own user: `"missing"` (already gone from the scene),
- * `"sourceRemoved"`, `"burnedOut"`, `"occupied"`, or `"invalid"` for a refused call.
+ * `"sourceRemoved"`, `"burnedOut"`, `"occupied"`, `"refused"` (the game system refused the
+ * light's effect), or `"invalid"` for a refused call.
  * @param {Item} item The Item the light returns with, already on the picking actor.
  * @param {AmbientLightDocument} light The ground light `dropLightWithItem` returned.
  * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the actor is now lit, and why not.
@@ -372,7 +373,8 @@ export async function pickupGroundLight(item, light) {
  * notification. When `lit` is false, `reason` is `"notBurning"` (`fromItem` is not the
  * Item the light burns on, which includes every `"copy"` and free-for-all light),
  * `"sourceRemoved"`, `"burnedOut"`, `"occupied"` (the receiver's light is never replaced,
- * and the giver keeps its own), `"noGm"`, or `"invalid"` for a refused call.
+ * and the giver keeps its own), `"noGm"`, `"refused"` (the receiver's game system refused
+ * the light's effect, and the giver keeps its own), or `"invalid"` for a refused call.
  * @param {Item} fromItem The Item the light burns on now, still on the giving actor.
  * @param {Item} toItem The Item that takes it, already on the receiving actor.
  * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the receiver is now lit, and why not.

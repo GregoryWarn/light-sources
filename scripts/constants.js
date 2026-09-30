@@ -88,7 +88,9 @@ export const FLAGS = {
  * - `OCCUPIED`: the actor already has a light burning, which is never replaced.
  * - `NOT_BURNING`: `fromItem` is not the Item its actor's light burns on.
  * - `NO_GM`: the move needed the GM, and no active GM answered.
- * @type {{INVALID: string, MISSING: string, SOURCE_REMOVED: string, BURNED_OUT: string, OCCUPIED: string, NOT_BURNING: string, NO_GM: string}}
+ * - `REFUSED`: the game system or another module refused the light's effect on the
+ *   actor (PF2e refuses them all).
+ * @type {{INVALID: string, MISSING: string, SOURCE_REMOVED: string, BURNED_OUT: string, OCCUPIED: string, NOT_BURNING: string, NO_GM: string, REFUSED: string}}
  */
 export const LIGHT_REASONS = {
   INVALID: "invalid",
@@ -97,7 +99,8 @@ export const LIGHT_REASONS = {
   BURNED_OUT: "burnedOut",
   OCCUPIED: "occupied",
   NOT_BURNING: "notBurning",
-  NO_GM: "noGm"
+  NO_GM: "noGm",
+  REFUSED: "refused"
 };
 
 /**

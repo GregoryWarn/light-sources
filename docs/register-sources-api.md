@@ -218,7 +218,7 @@ const lit = await game.lightSources.activate(actor, sourceUuid, { pattern: "Narr
 | `uuid` | `string` | The registered source's `uuid`, or its internal `id`. A source the GM added by name has no uuid and is reachable only by id. |
 | `options.pattern` | `string` | Name of the pattern to light. Defaults to the source's first pattern. |
 
-Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: "copy"` or `"charge"` source's item is no longer carried or has nothing left to spend. It is also refused while the light of every matching item, dropped from the Token HUD, lies on the ground (see [Dropping](#dropping)).
+Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: "copy"` or `"charge"` source's item is no longer carried or has nothing left to spend. It is also refused while the light of every matching item, dropped from the Token HUD, lies on the ground (see [Dropping](#dropping)), and when the game system or another module refuses the light's effect on the actor. Nothing is spent and nothing is announced then, and the user sees a warning. PF2e refuses every effect a module adds to an actor, so no light can be lit there.
 
 **Ownership.** Foundry refuses embedded document creation on an actor the current user does not own, so from a player's client this reaches their own character and nothing else; from the GM's client it reaches anyone. This is checked up front and reported as `false` rather than left to throw. There is deliberately **no relay** that would let one player light a light on another player's actor — routing that through the GM would mean any client could ask the GM to write ActiveEffects onto any actor, which is a larger permission surface than this module is willing to open. If your system needs to light someone else's character, run that part of the flow on the GM's client. The one relay is [`handOverLight`](#handoverlightfromitem-toitem): it goes through the GM to put a light on another player's actor, but only a light it moves off an actor the requester owns, so it never lights anything new.
 
@@ -309,6 +309,7 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. Once the light is fo
 | `"sourceRemoved"` | Its light source was deleted from the configuration. |
 | `"burnedOut"` | It burned out while it lay on the ground. |
 | `"occupied"` | The actor already has a light burning. That light is never replaced. The picked-up flame goes out and the Item arrives unlit. Lighting it again costs what lighting always costs — for a `consume: "charge"` Item, another charge. |
+| `"refused"` | The game system or another module refused the light's effect on the actor. The picked-up flame goes out and the Item arrives unlit. |
 | `"invalid"` | The call was refused: not a GM client, an Item not on an actor, or a light not placed by `dropLightWithItem`. |
 
 **GM client only, and silent.** No chat message and no notification: the GM's client is rarely the one whose user picked the Item up. Tell your own user from `reason`, for example by returning it from your query handler.
@@ -343,6 +344,7 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. When `lit` is `false
 | `"burnedOut"` | The light has burned out and is waiting for the expiry sweep. |
 | `"occupied"` | The receiver already has a light burning. That light is never replaced, and the giver keeps its own, so you can cancel the hand-over. |
 | `"noGm"` | The hand-over needed the GM, and no active GM answered. |
+| `"refused"` | The game system or another module refused the light's effect on the receiver. The giver keeps its light. |
 | `"invalid"` | The call was refused: an Item not on an actor (or on one in a compendium), the same actor on both sides, a `toItem` that does not match the light's source, a requester that does not own the giving actor, or a removal from the giver that another module cancelled. |
 
 **Runs on any client.** When the current user can write both actors, the light moves right there. Between two players neither can write the other's actor, so it asks the active GM through a query, and the GM moves it only when the requester owns the giving actor. The receiver's permission is not asked: giving is the point. Without an active GM, a hand-over between two players returns `"noGm"`.
