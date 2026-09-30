@@ -11,7 +11,8 @@ import {
   PICKUP_REASONS
 } from "./constants.js";
 import {
-  findMatchingItems, buildLightMessage, getItemQuantity, getQuantityPath, getSources, getAnnounceLit
+  findMatchingItems, buildLightMessage, getItemRemaining, getQuantityPath, getChargesPath, getChargesSpentPath, getSources,
+  getAnnounceLit
 } from "./helpers.js";
 
 /**
@@ -158,7 +159,7 @@ function isExpired(flag, now) {
  *   burns down without shining (see `setLightStowed`). Used when picking a light
  *   back up that was lying on the ground switched off.
  * @param {string|null} [options.itemId=null] The carried Item that is burning (see
- *   `burningItemId`). Recorded so the light can leave with that exact Item, and go
+ *   `payForLight`). Recorded so the light can leave with that exact Item, and go
  *   out when it leaves any other way (see `onDeleteItem`).
  * @returns {Promise<void>}
  */
@@ -210,19 +211,60 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
 }
 
 /**
- * The carried Item a newly lit light burns on, if any. Only the item of a source that
- * does not spend a copy *is* the light: a source that spends a copy turned one unit
- * into a flame that is no longer among what the actor carries, and a free-for-all
- * source has no item at all.
- * When several copies match, the first is the one lit — the same item the Token HUD
- * lists first.
+ * Pay for lighting `source` on `actor`, and say which carried Item the flame burns on.
+ * The flame leaves its Item only when a copy of that Item was spent. A lantern, and an
+ * object whose charge was spent, go on being the light. A free-for-all source has no
+ * item at all. When several items match, the first is the one lit — the same item the
+ * Token HUD lists first.
  * @param {Actor} actor The actor being lit.
  * @param {object} source The registered light source definition.
- * @returns {string|null} The burning Item's id, or null when no carried item is the light.
+ * @returns {Promise<{itemId: string|null}|null>} Where the flame burns, or null when
+ *   refused because nothing carried can pay (a warning has been shown).
  */
-function burningItemId(actor, source) {
-  if ( (source.consume === CONSUME_MODES.COPY) || source.freeForAll ) return null;
-  return findMatchingItems(actor, source)[0]?.id ?? null;
+async function payForLight(actor, source) {
+  if ( source.freeForAll ) return { itemId: null };
+  const item = findMatchingItems(actor, source)[0];
+  // A "none" source lights without an item, as 0.2.0 did through the API (a spell's
+  // light, say); only a source that spends needs something to spend.
+  if ( source.consume === CONSUME_MODES.NONE ) return { itemId: item?.id ?? null };
+  if ( !item ) {
+    ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.NoItem", { name: actor.name, item: source.name }));
+    return null;
+  }
+  await spendOne(actor, item, source.consume);
+  // Captured before the spend: the last charge takes the Item to 0, which hides it from
+  // findMatchingItems, and it is still the Item that burns.
+  return { itemId: source.consume === CONSUME_MODES.COPY ? null : item.id };
+}
+
+/**
+ * Spend one of what `mode` counts. Charges stored as "spent so far" count up; everything
+ * else counts down. An unknown count spends nothing, as 0.2.0 did.
+ * @param {Actor} actor The actor carrying the item.
+ * @param {Item} item The item paying for the light.
+ * @param {string} mode The source's `consume` mode (see CONSUME_MODES).
+ * @returns {Promise<void>}
+ */
+async function spendOne(actor, item, mode) {
+  const remaining = getItemRemaining(item, mode);
+  if ( !Number.isFinite(remaining) ) return;
+  const spentPath = (mode === CONSUME_MODES.CHARGE) ? getChargesSpentPath() : "";
+  const update = spentPath
+    ? { [spentPath]: (Number(foundry.utils.getProperty(item, spentPath)) || 0) + 1 }
+    : { [mode === CONSUME_MODES.CHARGE ? getChargesPath() : getQuantityPath()]: remaining - 1 };
+  await Item.implementation.updateDocuments([{ _id: item.id, ...update }], { parent: actor });
+}
+
+/**
+ * The carried Item a light picked up from the ground burns on (nothing is spent).
+ * @param {Actor} actor The actor picking the light up.
+ * @param {object} source The registered light source definition.
+ * @returns {string|null} The Item's id, or null when no carried item is the light.
+ */
+function bindOnPickup(actor, source) {
+  if ( source.freeForAll || (source.consume === CONSUME_MODES.COPY) ) return null;
+  // Past the count: a torch whose last charge lit this flame is at 0, and is still the torch.
+  return findMatchingItems(actor, source, { anyCount: true })[0]?.id ?? null;
 }
 
 /**
@@ -257,22 +299,9 @@ export async function activateLight(actor, source, pattern) {
     return true;
   }
 
-  if ( (source.consume === CONSUME_MODES.COPY) && !source.freeForAll ) {
-    const item = findMatchingItems(actor, source)[0];
-    if ( !item ) {
-      ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.NoItem", { name: actor.name, item: source.name }));
-      return false;
-    }
-    // Only decrement when a quantity path is configured and resolves to a
-    // number; otherwise the item has no tracked quantity to spend.
-    const quantityPath = getQuantityPath();
-    const quantity = getItemQuantity(item);
-    if ( quantityPath && Number.isFinite(quantity) ) {
-      await Item.implementation.updateDocuments([{ _id: item.id, [quantityPath]: quantity - 1 }], { parent: actor });
-    }
-  }
-
-  await createLightEffect(actor, source, pattern, buildTiming(source), { itemId: burningItemId(actor, source) });
+  const paid = await payForLight(actor, source);
+  if ( !paid ) return false;
+  await createLightEffect(actor, source, pattern, buildTiming(source), { itemId: paid.itemId });
 
   if ( !getAnnounceLit() ) return true;
 
@@ -534,10 +563,10 @@ function readGroundLight(ground) {
  * a light left behind would belong to nothing.
  *
  * Unlike the Token HUD's pickup, a light already burning on the actor is never
- * replaced; the picked-up one is simply not relit (`occupied`). That costs nothing:
- * only a non-consuming source's light reaches the ground this way, so relighting it
- * from the Item is free. Replacing instead would silently snuff whatever the actor
- * had lit, a spent torch included.
+ * replaced; the picked-up flame goes out instead (`occupied`), and lighting that Item
+ * again costs what lighting always costs — for an Item that spends a charge, another
+ * charge. Replacing instead would silently snuff whatever the actor had lit, a spent
+ * torch included.
  * @param {Item} item The Item the light returns with, already on the picking actor.
  * @param {AmbientLightDocument} light A ground light placed by `dropItemLight`.
  * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the actor is now lit,
@@ -625,7 +654,7 @@ export async function pickupLight(actor, light) {
     mode: ground.mode,
     expiresAtWorld: ground.expiresAtWorld,
     expiresAtReal: ground.expiresAtReal
-  }, { stowed: !!source.coverable && hidden, itemId: burningItemId(actor, source) });
+  }, { stowed: !!source.coverable && hidden, itemId: bindOnPickup(actor, source) });
 
   await ChatMessage.implementation.createDocuments([
     buildLightMessage(

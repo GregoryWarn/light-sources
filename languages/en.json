@@ -52,6 +52,7 @@
       "Minutes": "{minutes} min",
       "Patterns": "{count} patterns",
       "ConsumeCopy": "Spends a copy",
+      "ConsumeCharge": "Spends a charge",
       "FreeForAll": "Free for all",
       "Coverable": "Can be covered",
       "ManagedByTooltip": "Registered by an external system or module: {name}",
@@ -72,14 +73,18 @@
       "Tabs": {
         "items": "Item Types",
         "actors": "Actor Types",
-        "quantity": "Quantity"
+        "quantity": "Quantity & Charges"
       },
       "ItemsHint": "Enable the item types that may be registered as light sources.",
       "ActorsHint": "Enable the actor types allowed to use \"free for all\" light sources on the Token HUD. Actors carrying a matching light-source item can always use it, regardless of this list.",
       "NoItemTypes": "The active system defines no item types.",
       "NoActorTypes": "The active system defines no actor types.",
       "QuantityPath": "Item Quantity Path",
-      "QuantityHint": "Dotted path to an item's quantity, from the item root (for example: system.quantity). Used to check availability and to subtract one when a light is consumed. Leave empty if the system's items have no quantity — consumable light sources will then never reduce a count.",
+      "QuantityHint": "Dotted path to an item's quantity, from the item root (for example: system.quantity). Read by sources that spend a copy, to check availability and to subtract one when lit. Leave empty if the system's items have no quantity — such sources will then never reduce a count.",
+      "ChargesPath": "Item Charges Path",
+      "ChargesHint": "Dotted path to how many charges an item has left, from the item root (for example: system.uses.value). Read by sources that spend a charge, to check availability and, unless a spent path is set below, to subtract one when lit. Leave empty if the system's items have no charges.",
+      "ChargesSpentPath": "Charges Spent Path",
+      "ChargesSpentHint": "Optional. For a system that stores the charges used rather than those left (for example: system.uses.spent). When set, lighting adds one here instead of subtracting one from the charges path, which is still what is read.",
       "Save": "Save"
     },
     "LightEditor": {
@@ -106,9 +111,10 @@
         "Consume": "Lighting Spends",
         "ConsumeModes": {
           "none": "Nothing",
-          "copy": "One copy of the item"
+          "copy": "One copy of the item",
+          "charge": "One charge of the item"
         },
-        "ConsumeHint": "What lighting this source takes from the item. Nothing: the item is the light, like a lantern or a glowing blade. One copy: the item is a stack of identical lights, like five torches; one copy turns into the flame and no longer belongs to the stack. Only lighting spends: switching patterns, dropping and picking up never do.",
+        "ConsumeHint": "What lighting this source takes from the item. Nothing: the item is the light, like a lantern or a glowing blade. One copy: the item is a stack of identical lights, like five torches; one copy turns into the flame and no longer belongs to the stack. One charge: the item is a single object with uses, like a torch that can be lit three times or a wand with charges; the light burns on that item, goes out when the item leaves the actor, and travels with it when another module carries the item onto the map. Only lighting spends: switching patterns, dropping and picking up never do.",
         "Coverable": "Can Be Covered",
         "CoverableHint": "Adds a Stow control beside Drop in the Token HUD, covering the light instead of ending it: it stops shining but keeps burning down, and can be uncovered later with whatever time it has left. Meant for a light that is a spell on an object rather than a flame — a Light cantrip on a pebble is pocketed, not snuffed. Leave off for torches and lanterns.",
         "Duration": "Duration (minutes)",

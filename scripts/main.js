@@ -52,6 +52,20 @@ Hooks.once("init", () => {
     default: preset.quantityPath ?? ""
   });
 
+  game.settings.register(MODULE_ID, SETTINGS.CHARGES_PATH, {
+    scope: "world",
+    config: false,
+    type: String,
+    default: preset.chargesPath ?? ""
+  });
+
+  game.settings.register(MODULE_ID, SETTINGS.CHARGES_SPENT_PATH, {
+    scope: "world",
+    config: false,
+    type: String,
+    default: preset.chargesSpentPath ?? ""
+  });
+
   game.settings.register(MODULE_ID, SETTINGS.ALLOW_FREE_FOR_ALL_DROP, {
     name: "LIGHTSOURCES.Settings.AllowFreeForAllDrop.Name",
     hint: "LIGHTSOURCES.Settings.AllowFreeForAllDrop.Hint",

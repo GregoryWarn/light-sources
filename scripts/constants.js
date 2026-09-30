@@ -20,6 +20,10 @@ export const MODULE_ID = "light-sources";
  * - `ITEM_TYPES` / `ACTOR_TYPES`: which of the detected system's document
  *   types this module treats as light-source items / light-bearing actors.
  * - `QUANTITY_PATH`: dotted path (from the item root) to an item's quantity.
+ * - `CHARGES_PATH`: dotted path (from the item root) to how many charges an item
+ *   has left.
+ * - `CHARGES_SPENT_PATH`: optional dotted path to the charges an item has used, for
+ *   a system that counts up; when set, lighting writes here instead.
  * - `ALLOW_FREE_FOR_ALL_DROP`: whether "free for all" lights may be dropped on
  *   the ground (see `getAllowFreeForAllDrop` in `helpers.js`).
  * - `RESTRICT_PLAYER_CONTROL`: whether only the GM may activate, deactivate,
@@ -27,7 +31,7 @@ export const MODULE_ID = "light-sources";
  *   `getRestrictPlayerControl` in `helpers.js`).
  * - `ANNOUNCE_LIT`: whether lighting a source posts a chat message (see
  *   `getAnnounceLit` in `helpers.js`).
- * @type {{SOURCES: string, MENU: string, COMPAT_MENU: string, ITEM_TYPES: string, ACTOR_TYPES: string, QUANTITY_PATH: string, ALLOW_FREE_FOR_ALL_DROP: string, RESTRICT_PLAYER_CONTROL: string, ANNOUNCE_LIT: string}}
+ * @type {{SOURCES: string, MENU: string, COMPAT_MENU: string, ITEM_TYPES: string, ACTOR_TYPES: string, QUANTITY_PATH: string, CHARGES_PATH: string, CHARGES_SPENT_PATH: string, ALLOW_FREE_FOR_ALL_DROP: string, RESTRICT_PLAYER_CONTROL: string, ANNOUNCE_LIT: string}}
  */
 export const SETTINGS = {
   SOURCES: "sources",
@@ -36,6 +40,8 @@ export const SETTINGS = {
   ITEM_TYPES: "itemTypes",
   ACTOR_TYPES: "actorTypes",
   QUANTITY_PATH: "quantityPath",
+  CHARGES_PATH: "chargesPath",
+  CHARGES_SPENT_PATH: "chargesSpentPath",
   ALLOW_FREE_FOR_ALL_DROP: "allowFreeForAllDrop",
   RESTRICT_PLAYER_CONTROL: "restrictPlayerControl",
   ANNOUNCE_LIT: "announceLit"
@@ -46,7 +52,7 @@ export const SETTINGS = {
  * - `EFFECT_LIGHT`: marks the ActiveEffect this module creates to drive a token's
  *   light, and carries its bookkeeping payload ({sourceId, patternId, patternName,
  *   itemName, itemId, mode, expiresAtWorld, expiresAtReal}). `itemId` is the carried
- *   Item that is burning, or null when no item is (a consuming source spent it, a
+ *   Item that is burning, or null when no item is (a copy was spent, or a
  *   free-for-all source has none); older effects lack it and count as null.
  * - `GROUND_LIGHT`: marks an AmbientLight dropped by an actor (as opposed to one
  *   the GM placed by hand) and carries what is needed to light it again on a token
@@ -111,11 +117,14 @@ export const DURATION_MODES = {
  * - `none`: nothing; the Item is the light (a lantern).
  * - `copy`: one copy of a stack, through the quantity path; the copy becomes the flame,
  *   which no longer belongs to the stack.
- * @type {{NONE: string, COPY: string}}
+ * - `charge`: one charge of a single object, through the charges path; the flame
+ *   burns on that Item.
+ * @type {{NONE: string, COPY: string, CHARGE: string}}
  */
 export const CONSUME_MODES = {
   NONE: "none",
-  COPY: "copy"
+  COPY: "copy",
+  CHARGE: "charge"
 };
 
 /**
@@ -132,7 +141,7 @@ export const LIGHT_CHANGE_PRIORITY = 50;
  * actor types and item-quantity path so the module works out of the box.
  * Systems not listed here start fully unconfigured (nothing enabled) and rely
  * on the GM to fill in the compatibility settings by hand.
- * @type {Record<string, {itemTypes: string[], actorTypes: string[], quantityPath: string}>}
+ * @type {Record<string, {itemTypes: string[], actorTypes: string[], quantityPath: string, chargesPath?: string, chargesSpentPath?: string}>}
  */
 export const SYSTEM_PRESETS = {
   daggerheart: {

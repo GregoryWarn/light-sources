@@ -72,7 +72,7 @@ Register or update one or more light source definitions. Existing sources (match
 
 ## `registerCompatibility(options?)`
 
-Seed the module's compatibility settings — the same three values the GM can set by hand in **Settings → Light Sources → Configure System Compatibility** — from your own module or system code. This plays the same role `SYSTEM_PRESETS` plays for systems built into the module (like Daggerheart), but supplied at runtime by you instead of hardcoded in the module.
+Seed the module's compatibility settings — the same values the GM can set by hand in **Settings → Light Sources → Configure System Compatibility** — from your own module or system code. This plays the same role `SYSTEM_PRESETS` plays for systems built into the module (like Daggerheart), but supplied at runtime by you instead of hardcoded in the module.
 
 This matters most for `freeForAll` sources: they only appear in the Token HUD for actor types enabled in the **Actor Types** compatibility setting (see [`freeForAll`](#freeforall) below). For a system with no built-in preset, that list starts empty, so a `freeForAll` source silently shows for nobody until either the GM visits the Compatibility window, or your code calls `registerCompatibility`.
 
@@ -84,6 +84,8 @@ This matters most for `freeForAll` sources: they only appear in the Token HUD fo
 | `options.itemTypes` | `string[]` | — | Item type ids to enable as light sources. |
 | `options.actorTypes` | `string[]` | — | Actor type ids allowed to carry/light sources — and, specifically, to use `freeForAll` sources without an item. |
 | `options.quantityPath` | `string` | — | Dotted path (from an item's root) to its quantity, e.g. `"system.quantity"`. |
+| `options.chargesPath` | `string` | — | Dotted path (from an item's root) to how many charges it has left, e.g. `"system.uses.value"`. Read by `consume: "charge"` sources. |
+| `options.chargesSpentPath` | `string` | — | Dotted path (from an item's root) to how many charges it has used, e.g. `"system.uses.spent"`, for a system that stores the count going up. When set, lighting adds one here instead of subtracting one from `chargesPath`, which is still what is read. |
 
 ### Returns
 
@@ -91,7 +93,7 @@ This matters most for `freeForAll` sources: they only appear in the Token HUD fo
 
 ### Behavior
 
-Each of the three fields is seeded **independently and only when still unset** — the same "never configured yet" semantics `SYSTEM_PRESETS` uses. If the GM has already set `actorTypes` by hand (through the Compatibility window, or through a previous call to this function), a later call passing a different `actorTypes` value does **not** overwrite it, even though `itemTypes` or `quantityPath` might still be empty and get seeded normally.
+Each field is seeded **independently and only when still unset** — the same "never configured yet" semantics `SYSTEM_PRESETS` uses. If the GM has already set `actorTypes` by hand (through the Compatibility window, or through a previous call to this function), a later call passing a different `actorTypes` value does **not** overwrite it, even though `itemTypes` or `quantityPath` might still be empty and get seeded normally.
 
 This makes the call **safe to repeat every session**, the same way `registerSources` is meant to be re-called on every `ready` — it only ever fills in what nobody has configured yet, and never fights the GM for values they've already chosen.
 
@@ -123,7 +125,7 @@ Each object in the `entries` array describes a single light source:
       }
     }
   ],
-  consume: string,           // Optional – what lighting spends: "none" or "copy" (default: "none")
+  consume: string,           // Optional – what lighting spends: "none", "copy" or "charge" (default: "none")
   freeForAll: boolean,       // Optional – any actor of an Actor-Types-enabled type can light this, no inventory item needed (default: false)
   coverable: boolean,        // Optional – the light can be covered instead of ended, keeping its remaining duration (default: false)
   hudHidden: boolean,        // Optional – never offered in the Token HUD; lit only through activate() (default: false)
@@ -147,9 +149,11 @@ Consumption and duration are shared across all patterns of the same source; only
 #### `consume`
 What **lighting** the source spends. `"none"` (the default) spends nothing: the item is the light, like a lantern. `"copy"` subtracts one from the matching item's quantity, using the quantity path configured in the module's compatibility settings: the item is a stack of identical lights, and one copy becomes the flame. Activation is the *only* moment an item is ever spent — dropping a lit light on the ground never consumes and never refunds (see [Dropping](#dropping)). A `consume: "none"` source therefore never touches inventory at any point. An entry with any other value is skipped, with a console warning.
 
+`"charge"` spends one charge of one object: a torch that can be lit three times, a wand or a Driftglobe with charges. What is left is read from the charges path configured in the compatibility settings (see [`registerCompatibility`](#registercompatibilityoptions)), and one is subtracted there when the source is lit — or, when a charges-spent path is set, one is added to that instead. Unlike `"copy"`, the flame burns on that Item: it moves with it through [`dropLightWithItem`](#droplightwithitemitem-where), and it goes out when the Item leaves the actor any other way. Use it for an object with uses, never for a stack. It assumes the Item survives at 0 charges. A system that removes an object once its last charge is gone puts the light out on that removal, as any removal does, so such a system should use `"copy"`.
+
 Items are matched by `_stats.compendiumSource` (the origin UUID core stamps on a copy made from a compendium), falling back to name + type, so a source keeps working after a player renames the item on their sheet or a translation module renames it. The fallback only fires when the item has no matching origin, so a system that creates items outside core's compendium import — a character creator, a shop, a starting kit — should stamp `_stats.compendiumSource` with the pack entry's UUID on each copy it makes; otherwise those items are matched by name alone.
 
-Quantity only gates a source that spends it. For `consume: "copy"`, an item whose quantity has reached 0 stops matching (though the source stays listed in the HUD while its light is still burning, so it can still be extinguished or dropped). For `consume: "none"` the quantity is never read, so the item matches at any value — including 0, and including a quantity path that does not resolve on that item at all. That is what lets a reusable tool be a light source in a system where the configured path is optional per item: without it, no value of `quantityPath` can make a consumable torch burn down *and* a permanent lantern appear.
+Quantity only gates a source that spends it. For `consume: "copy"`, an item whose quantity has reached 0 stops matching, and the same holds for `"charge"` and an item whose charges have reached 0 (though the source stays listed in the HUD while its light is still burning, so it can still be extinguished or dropped). For `consume: "none"` the quantity is never read, so the item matches at any value — including 0, and including a quantity path that does not resolve on that item at all. That is what lets a reusable tool be a light source in a system where the configured path is optional per item: without it, no value of `quantityPath` can make a consumable torch burn down *and* a permanent lantern appear.
 
 #### `negative`
 A pattern with `negative: true` is a **darkness source**: it dims the area inside its radii instead of revealing it, using core's own `LightData#negative`. Everything else about the pattern works unchanged — radii, angle, color, intensity, duration and consumption all behave the same, and extinguishing restores the token's own light exactly as it does for a normal pattern.
@@ -214,7 +218,7 @@ const lit = await game.lightSources.activate(actor, sourceUuid, { pattern: "Narr
 | `uuid` | `string` | The registered source's `uuid`, or its internal `id`. A source the GM added by name has no uuid and is reachable only by id. |
 | `options.pattern` | `string` | Name of the pattern to light. Defaults to the source's first pattern. |
 
-Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: "copy"` source's item is no longer carried.
+Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: "copy"` or `"charge"` source's item is no longer carried or has nothing left to spend.
 
 **Ownership.** Foundry refuses embedded document creation on an actor the current user does not own, so from a player's client this reaches their own character and nothing else; from the GM's client it reaches anyone. This is checked up front and reported as `false` rather than left to throw. There is deliberately **no relay** that would let one player light a light on another player's actor — routing that through the GM would mean any client could ask the GM to write ActiveEffects onto any actor, which is a larger permission surface than this module is willing to open. If your system needs to light someone else's character, run that part of the flow on the GM's client.
 
@@ -247,7 +251,7 @@ const light = game.lightSources.getActive(actor);
 
 Returns the active light payload, or `null` when the actor has no light lit. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
 
-`itemId` is the id of the carried Item that is burning. Only a `consume: "none"` source has one: a `"copy"` source turned one of its items into the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out.
+`itemId` is the id of the carried Item that is burning. Every source has one except two: a `"copy"` source turned one of its items into the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out.
 
 ---
 
@@ -272,7 +276,7 @@ await item.delete();
 | `where.levels` | `string[]` | Optional ids of the scene levels it belongs to, `[]` by default. |
 | `where.managedBy` | `string` | The id of your module or system. **Required.** |
 
-Returns `Promise<AmbientLightDocument | null>`: the placed light, or `null` when nothing moved. Nothing moves unless `item` is the very Item the light burns on (its `itemId`). A rope leaving while a lantern burns moves nothing, and a light from a `consume: "copy"` source never moves.
+Returns `Promise<AmbientLightDocument | null>`: the placed light, or `null` when nothing moved. Nothing moves unless `item` is the very Item the light burns on (its `itemId`). That is every source except a `consume: "copy"` or `freeForAll` one: a lantern or a torch with uses takes its flame along, a rope leaving while a lantern burns moves nothing, and a light from a `"copy"` source never moves.
 
 **Call it before removing the Item.** Removing a burning Item puts its light out, so once the Item is gone there is nothing left to move.
 
@@ -304,7 +308,7 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. Once the light is fo
 | `"missing"` | The light is no longer on the scene: it burned out and was swept, or a GM deleted it. |
 | `"sourceRemoved"` | Its light source was deleted from the configuration. |
 | `"burnedOut"` | It burned out while it lay on the ground. |
-| `"occupied"` | The actor already has a light burning. That light is never replaced. The Item arrives unlit and can be lit again from the Token HUD, which costs nothing because only `consume: "none"` lights travel this way. |
+| `"occupied"` | The actor already has a light burning. That light is never replaced. The picked-up flame goes out and the Item arrives unlit. Lighting it again costs what lighting always costs — for a `consume: "charge"` Item, another charge. |
 | `"invalid"` | The call was refused: not a GM client, an Item not on an actor, or a light not placed by `dropLightWithItem`. |
 
 **GM client only, and silent.** No chat message and no notification: the GM's client is rarely the one whose user picked the Item up. Tell your own user from `reason`, for example by returning it from your query handler.

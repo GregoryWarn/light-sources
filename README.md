@@ -55,7 +55,7 @@ And then the table stops. The GM alt-tabs to the token settings, types a dim rad
 
      ![Configuring a light pattern](docs/config-light-source.webp)
 
-   * **Consumption** — what lighting it spends: nothing, or one from a stack, how many minutes it burns before dying out (`0` = burns forever until put out by hand), and whether that countdown runs on the **in-game clock** or on **real time**.
+   * **Consumption** — what lighting it spends: nothing, one from a stack, or one charge of the item itself — a light that spends a charge burns on the item, so it goes out when the item leaves the character and travels with it when a module such as Canvas Loot drops it on the map — how many minutes it burns before dying out (`0` = burns forever until put out by hand), and whether that countdown runs on the **in-game clock** or on **real time**.
 
      ![Configuring consumption](docs/consumption.webp)
 

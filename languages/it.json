@@ -52,6 +52,7 @@
       "Minutes": "{minutes} min",
       "Patterns": "{count} schemi",
       "ConsumeCopy": "Consuma una copia",
+      "ConsumeCharge": "Consuma una carica",
       "FreeForAll": "Gratuita",
       "Coverable": "Può essere coperta",
       "ManagedByTooltip": "Registrata da un sistema o modulo esterno: {name}",
@@ -72,14 +73,18 @@
       "Tabs": {
         "items": "Tipi di oggetto",
         "actors": "Tipi di attore",
-        "quantity": "Quantità"
+        "quantity": "Quantità e cariche"
       },
       "ItemsHint": "Abilita i tipi di oggetto che possono essere registrati come fonti di luce.",
       "ActorsHint": "Abilita i tipi di attore autorizzati a utilizzare fonti di luce \"gratuite\" dall'HUD del token. Gli attori che trasportano un oggetto corrispondente a una fonte di luce possono sempre utilizzarlo, indipendentemente da questo elenco.",
       "NoItemTypes": "Il sistema attivo non definisce alcun tipo di oggetto.",
       "NoActorTypes": "Il sistema attivo non definisce alcun tipo di attore.",
       "QuantityPath": "Percorso della quantità dell'oggetto",
-      "QuantityHint": "Percorso separato da punti che conduce alla quantità di un oggetto, a partire dalla radice dell'oggetto (ad esempio: system.quantity). Viene utilizzato per verificare la disponibilità e sottrarre una unità quando una fonte di luce viene consumata. Lascia vuoto se gli oggetti del sistema non hanno una quantità: in tal caso le fonti di luce consumabili non ridurranno mai il conteggio.",
+      "QuantityHint": "Percorso puntato della quantità di un oggetto, a partire dalla radice dell'oggetto (ad esempio: system.quantity). Letto dalle fonti che consumano una copia, per verificarne la disponibilità e per sottrarne una all'accensione. Lascia vuoto se gli oggetti del sistema non hanno una quantità: tali fonti non ridurranno mai alcun conteggio.",
+      "ChargesPath": "Percorso delle cariche dell'oggetto",
+      "ChargesHint": "Percorso puntato del numero di cariche rimaste a un oggetto, a partire dalla radice dell'oggetto (ad esempio: system.uses.value). Letto dalle fonti che consumano una carica, per verificarne la disponibilità e, se sotto non è indicato un percorso delle cariche spese, per sottrarne una all'accensione. Lascia vuoto se gli oggetti del sistema non hanno cariche.",
+      "ChargesSpentPath": "Percorso delle cariche spese",
+      "ChargesSpentHint": "Facoltativo. Per un sistema che memorizza le cariche usate anziché quelle rimaste (ad esempio: system.uses.spent). Se indicato, l'accensione aggiunge uno qui invece di sottrarre uno dal percorso delle cariche, che resta quello letto.",
       "Save": "Salva"
     },
     "LightEditor": {
@@ -106,9 +111,10 @@
         "Consume": "L'accensione consuma",
         "ConsumeModes": {
           "none": "Niente",
-          "copy": "Una copia dell'oggetto"
+          "copy": "Una copia dell'oggetto",
+          "charge": "Una carica dell'oggetto"
         },
-        "ConsumeHint": "Cosa toglie all'oggetto l'accensione di questa fonte. Niente: l'oggetto è la luce, come una lanterna o una lama luminosa. Una copia: l'oggetto è una pila di luci identiche, come cinque torce; una copia diventa la fiamma e non appartiene più alla pila. Solo l'accensione consuma: cambiare schema, lasciare a terra e raccogliere non consumano mai.",
+        "ConsumeHint": "Cosa toglie all'oggetto l'accensione di questa fonte. Niente: l'oggetto è la luce, come una lanterna o una lama luminosa. Una copia: l'oggetto è una pila di luci identiche, come cinque torce; una copia diventa la fiamma e non appartiene più alla pila. Una carica: l'oggetto è un unico oggetto con utilizzi, come una torcia che si può accendere tre volte o una bacchetta con cariche; la luce arde su quell'oggetto, si spegne quando l'oggetto lascia l'attore e lo segue quando un altro modulo porta l'oggetto sulla mappa. Solo l'accensione consuma: cambiare schema, lasciare a terra e raccogliere non consumano mai.",
         "Coverable": "Può essere coperta",
         "CoverableHint": "Aggiunge un comando Riponi accanto a Lascia a terra nell'HUD del token, coprendo la fonte di luce invece di terminarla: smette di illuminare ma continua a consumarsi e può essere scoperta in seguito con il tempo rimanente. È pensato per una luce che rappresenta un incantesimo su un oggetto anziché una fiamma — un trucchetto Luce lanciato su un sassolino viene riposto in tasca, non spento. Disabilita questa opzione per torce e lanterne.",
         "Duration": "Durata (minuti)",

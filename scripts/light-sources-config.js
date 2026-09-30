@@ -70,7 +70,10 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       patternLabel: source.patterns.length > 1
         ? game.i18n.format("LIGHTSOURCES.Config.Patterns", { count: source.patterns.length })
         : null,
-      consumeLabel: source.consume === CONSUME_MODES.COPY ? game.i18n.localize("LIGHTSOURCES.Config.ConsumeCopy") : null,
+      consumeLabel: {
+        [CONSUME_MODES.COPY]: game.i18n.localize("LIGHTSOURCES.Config.ConsumeCopy"),
+        [CONSUME_MODES.CHARGE]: game.i18n.localize("LIGHTSOURCES.Config.ConsumeCharge")
+      }[source.consume] ?? null,
       // Only a source registered through the API has a module default behind it;
       // one the GM added by hand has nothing to restore to. The control is then
       // rendered for all of them but stays inert until the GM edits one, so the

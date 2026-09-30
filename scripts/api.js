@@ -7,7 +7,9 @@
  */
 
 import { MODULE_ID, SETTINGS, FLAGS, DURATION_MODES, CONSUME_MODES, PICKUP_REASONS } from "./constants.js";
-import { getSources, setSources, makePattern, getItemTypes, getActorTypes, getQuantityPath } from "./helpers.js";
+import {
+  getSources, setSources, makePattern, getItemTypes, getActorTypes, getQuantityPath, getChargesPath, getChargesSpentPath
+} from "./helpers.js";
 import { activateLight, deactivateLight, getActiveLight, dropItemLight, pickupItemLight } from "./light-manager.js";
 
 /**
@@ -152,13 +154,13 @@ export async function registerSources(entries, { managedBy = null } = {}) {
 
 /**
  * Programmatically seed the compatibility settings (item types, actor types,
- * and the item-quantity path) from an external system or module, mirroring
- * what SYSTEM_PRESETS does for systems built into the module — but supplied
- * at runtime by the caller instead of hardcoded in constants.js.
+ * and the item quantity and charges paths) from an external system or module,
+ * mirroring what SYSTEM_PRESETS does for systems built into the module — but
+ * supplied at runtime by the caller instead of hardcoded in constants.js.
  *
  * Each field seeds independently and only when still unset, so this is safe
  * to call every session (e.g. alongside registerSources in the same `ready`
- * hook): a GM who has already configured any of these three through the
+ * hook): a GM who has already configured any of these through the
  * Compatibility config window keeps that choice untouched, even if the
  * caller supplies a different value for it.
  *
@@ -166,9 +168,13 @@ export async function registerSources(entries, { managedBy = null } = {}) {
  * @param {string[]} [options.itemTypes] Item type ids to enable as light sources.
  * @param {string[]} [options.actorTypes] Actor type ids allowed to carry/light sources.
  * @param {string} [options.quantityPath] Dotted path (from an item's root) to its quantity.
+ * @param {string} [options.chargesPath] Dotted path (from an item's root) to how many
+ *   charges it has left.
+ * @param {string} [options.chargesSpentPath] Dotted path (from an item's root) to how
+ *   many charges it has used, for a system that stores the count going up.
  * @returns {Promise<void>}
  */
-export async function registerCompatibility({ itemTypes, actorTypes, quantityPath } = {}) {
+export async function registerCompatibility({ itemTypes, actorTypes, quantityPath, chargesPath, chargesSpentPath } = {}) {
   if ( Array.isArray(itemTypes) && !getItemTypes().length ) {
     await game.settings.set(MODULE_ID, SETTINGS.ITEM_TYPES, itemTypes);
   }
@@ -177,6 +183,12 @@ export async function registerCompatibility({ itemTypes, actorTypes, quantityPat
   }
   if ( quantityPath && !getQuantityPath() ) {
     await game.settings.set(MODULE_ID, SETTINGS.QUANTITY_PATH, quantityPath);
+  }
+  if ( chargesPath && !getChargesPath() ) {
+    await game.settings.set(MODULE_ID, SETTINGS.CHARGES_PATH, chargesPath);
+  }
+  if ( chargesSpentPath && !getChargesSpentPath() ) {
+    await game.settings.set(MODULE_ID, SETTINGS.CHARGES_SPENT_PATH, chargesSpentPath);
   }
 }
 
@@ -245,9 +257,13 @@ export async function deactivate(actor) {
 /**
  * Read what is currently burning on an Actor, so a caller can tell whether a light
  * is lit, which source and pattern it came from, and when it runs out.
+ *
+ * `itemId` names the carried Item the light burns on, which then moves and goes out
+ * with it. That is every source except one that spends a copy, and a free-for-all
+ * source; for those it is null.
  * @param {Actor} actor The actor to inspect.
  * @returns {object|null} The active light payload ({sourceId, patternId, patternName,
- *   itemName, mode, expiresAtWorld, expiresAtReal, stowed}), or null when unlit.
+ *   itemName, itemId, mode, expiresAtWorld, expiresAtReal, stowed}), or null when unlit.
  */
 export function getActive(actor) {
   return getActiveLight(actor);
@@ -256,9 +272,10 @@ export function getActive(actor) {
 /**
  * Move the light burning on an Item's actor to the ground, together with that Item —
  * for a module that carries Items off actors and onto the map (loot, a thrown
- * lantern). The light moves only when `item` is the very Item it burns on: a lit
- * lantern leaving takes its flame, a rope leaving takes nothing, and a light lit
- * from a consuming source never moves, since the item it spent is not the flame.
+ * lantern). The light moves only when `item` is the very Item it burns on, which is
+ * every source except one that spends a copy, and a free-for-all source: a lit lantern
+ * or torch with uses leaving takes its flame, a rope leaving takes nothing, and a
+ * light lit from a stack never moves, since the copy it spent is the flame.
  *
  * Call it while `item` is still on its actor, then remove the Item. Removing it first
  * puts its light out, as any removal of a burning Item does.
@@ -305,9 +322,9 @@ export async function dropLightWithItem(item, { scene, x, y, elevation = 0, leve
  * picking actor — newly created, or the stack it merged into.
  *
  * The light always leaves the ground once found, even when it cannot be relit. A
- * light already burning on the actor is never replaced: the picked-up one stays unlit
- * and the Item can light it again from the Token HUD, for free, since only
- * non-consuming lights travel this way.
+ * light already burning on the actor is never replaced: the picked-up flame goes out,
+ * and lighting that Item again costs what lighting always costs — for an Item that
+ * spends a charge, another charge.
  *
  * GM client only, and silent: no chat and no notification, because the GM's client is
  * rarely the one whose user picked the Item up. The returned `reason` is for the
@@ -327,8 +344,8 @@ export async function pickupGroundLight(item, light) {
     console.warn(`${MODULE_ID} | pickupGroundLight expected an Item on the picking actor.`, item);
     return refused;
   }
-  // Only a light placed through the API: a Token HUD drop may be a consuming torch,
-  // and the pickup's promise that nothing of value is lost holds for none of those.
+  // Only a light placed through the API: a Token HUD drop has no package to hand it
+  // back, and its Item may still be on the actor.
   if ( (light?.documentName !== "AmbientLight") || !light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT)?.managedBy ) {
     console.warn(`${MODULE_ID} | pickupGroundLight expected a light placed by dropLightWithItem.`, light);
     return refused;

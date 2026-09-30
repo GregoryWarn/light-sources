@@ -102,15 +102,34 @@ export function getQuantityPath() {
 }
 
 /**
- * Read an item's quantity using the system-specific path configured in the
- * compatibility settings. Returns `NaN` when no path is configured or the path
- * resolves to a non-numeric value — callers treat that as "quantity unknown"
- * (i.e. always available, never consumed).
- * @param {Item} item The item to read.
- * @returns {number} The item's quantity, or `NaN` when it cannot be determined.
+ * The dotted path (from an item's root) to how many charges it has left, as
+ * configured for the detected system. Empty when the system has no charges configured.
+ * @returns {string} The charges path (e.g. "system.uses.value"), or "".
  */
-export function getItemQuantity(item) {
-  const path = getQuantityPath();
+export function getChargesPath() {
+  return game.settings.get(MODULE_ID, SETTINGS.CHARGES_PATH) ?? "";
+}
+
+/**
+ * The dotted path (from an item's root) to how many charges it has used, for a
+ * system that stores the count going up. Empty when charges are written through
+ * the charges path itself.
+ * @returns {string} The spent-charges path (e.g. "system.uses.spent"), or "".
+ */
+export function getChargesSpentPath() {
+  return game.settings.get(MODULE_ID, SETTINGS.CHARGES_SPENT_PATH) ?? "";
+}
+
+/**
+ * How many of what `mode` spends an Item has left: copies through the quantity path,
+ * charges through the charges path. NaN when the path is unset or does not resolve to a
+ * number, which callers treat as "unknown": always available, never spent.
+ * @param {Item} item The item to read.
+ * @param {string} mode The source's `consume` mode (see CONSUME_MODES).
+ * @returns {number} What the item has left, or `NaN` when it cannot be determined.
+ */
+export function getItemRemaining(item, mode) {
+  const path = mode === CONSUME_MODES.CHARGE ? getChargesPath() : getQuantityPath();
   if ( !path ) return NaN;
   return Number(foundry.utils.getProperty(item, path));
 }
@@ -147,26 +166,29 @@ export function listDocumentTypes(documentName) {
  * (and, when the source has a `type`, that type too — a name-only source has
  * no type and matches by name alone).
  *
- * Quantity gates only a source that spends what it matches. For a source that
- * spends a copy, an item worn down to 0 is excluded: it is kept in the inventory rather
- * than deleted, but stops being available for consumption or display in the Token
- * HUD. Any other source never reads the number, so its item matches at any
- * quantity — which is what lets a reusable tool (a lantern, a glowing blade) work
- * in a system where the configured path is optional per item and rests at 0.
- * Items whose quantity cannot be determined (no quantity path configured) are
- * always treated as available.
+ * What is left gates only a source that spends what it matches. For a source that
+ * spends a copy or a charge, an item worn down to 0 is excluded: it is kept in the
+ * inventory rather than deleted, but stops being available for consumption or display
+ * in the Token HUD. A source that spends nothing never reads the number, so its item
+ * matches at any count — which is what lets a reusable tool (a lantern, a glowing
+ * blade) work in a system where the configured path is optional per item and rests at 0.
+ * Items whose count cannot be determined (no path configured) are always treated as
+ * available.
  * @param {Actor} actor The actor whose inventory is searched.
  * @param {object} source A light source definition ({name, type, uuid, ...}).
  *   `type` and `uuid` may be null/absent for a source registered by name only.
+ * @param {object} [options={}]
+ * @param {boolean} [options.anyCount=false] Match items worn down to 0 too — for
+ *   finding the Item a flame burns on, which its last charge took to 0.
  * @returns {Item[]} The matching embedded Items available to this source.
  */
-export function findMatchingItems(actor, source) {
+export function findMatchingItems(actor, source, { anyCount = false } = {}) {
   const available = item => {
     // "Empty" and "not a light source" are different questions: only the item that
-    // will actually be spent is gated on its quantity.
-    if ( source.consume !== CONSUME_MODES.COPY ) return true;
-    const quantity = getItemQuantity(item);
-    return !Number.isFinite(quantity) || (quantity > 0);
+    // will actually be spent is gated on what it has left.
+    if ( anyCount || (source.consume === CONSUME_MODES.NONE) ) return true;
+    const remaining = getItemRemaining(item, source.consume);
+    return !Number.isFinite(remaining) || (remaining > 0);
   };
 
   if ( source.uuid ) {

@@ -7,7 +7,9 @@
  */
 
 import { MODULE_ID, SETTINGS, TEMPLATES } from "./constants.js";
-import { getItemTypes, getActorTypes, getQuantityPath, listDocumentTypes } from "./helpers.js";
+import {
+  getItemTypes, getActorTypes, getQuantityPath, getChargesPath, getChargesSpentPath, listDocumentTypes
+} from "./helpers.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -15,7 +17,7 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
  * GM configuration application that adapts the module to the detected game
  * system. Three tabs let the GM pick which of the system's item types count as
  * light sources, which actor types may carry and light them, and the dotted
- * path to an item's quantity (used for consumption). Opened through the
+ * paths to an item's quantity and charges (used for consumption). Opened through the
  * module's settings menu (restricted to GMs).
  *
  * Nothing here is auto-detected beyond the list of available types: it is the
@@ -62,8 +64,8 @@ export class CompatibilityConfig extends HandlebarsApplicationMixin(ApplicationV
 
   /**
    * Build the render context: the detected system's item/actor types (each
-   * flagged with its current enabled state), the configured quantity path and
-   * the active system's identity for display.
+   * flagged with its current enabled state), the configured quantity and charges
+   * paths and the active system's identity for display.
    * @param {object} options Render options.
    * @returns {Promise<object>} The template context.
    * @override
@@ -77,6 +79,8 @@ export class CompatibilityConfig extends HandlebarsApplicationMixin(ApplicationV
     context.itemTypes = listDocumentTypes("Item").map(t => ({ ...t, checked: enabledItems.includes(t.value) }));
     context.actorTypes = listDocumentTypes("Actor").map(t => ({ ...t, checked: enabledActors.includes(t.value) }));
     context.quantityPath = getQuantityPath();
+    context.chargesPath = getChargesPath();
+    context.chargesSpentPath = getChargesSpentPath();
     context.systemTitle = game.system.title;
     context.systemId = game.system.id;
     return context;
@@ -84,7 +88,7 @@ export class CompatibilityConfig extends HandlebarsApplicationMixin(ApplicationV
 
   /**
    * Form submission handler: collect the checked item/actor types and the
-   * quantity path, then persist them to the world settings.
+   * quantity and charges paths, then persist them to the world settings.
    * Called by ApplicationV2 with `this` bound to the application instance.
    * @param {SubmitEvent} event The originating submit event.
    * @param {HTMLFormElement} form The form element.
@@ -98,5 +102,7 @@ export class CompatibilityConfig extends HandlebarsApplicationMixin(ApplicationV
     await game.settings.set(MODULE_ID, SETTINGS.ITEM_TYPES, enabledFrom(data.items));
     await game.settings.set(MODULE_ID, SETTINGS.ACTOR_TYPES, enabledFrom(data.actors));
     await game.settings.set(MODULE_ID, SETTINGS.QUANTITY_PATH, (data.quantityPath ?? "").trim());
+    await game.settings.set(MODULE_ID, SETTINGS.CHARGES_PATH, (data.chargesPath ?? "").trim());
+    await game.settings.set(MODULE_ID, SETTINGS.CHARGES_SPENT_PATH, (data.chargesSpentPath ?? "").trim());
   }
 }

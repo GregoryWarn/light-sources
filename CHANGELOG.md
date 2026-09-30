@@ -1,5 +1,9 @@
 # Unreleased
 
+### Added
+
+* **A light can spend a charge and burn on its item.** A new `consume` value, `"charge"`, spends one charge of a single object instead of one copy of a stack: a torch that can be lit three times, a wand with charges. The light burns on that item, so it goes out when the item leaves the character and travels with it when a module carries the item onto the map. Two new compatibility paths say where charges live: **Item Charges Path** (charges left, e.g. `system.uses.value`) and an optional **Charges Spent Path** for systems that count charges used instead (e.g. `system.uses.spent`). Both can be seeded through `registerCompatibility`. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#consume).
+
 ### Changed
 
 * **`consume` says what lighting spends.** The API and the stored sources take `"none"` or `"copy"` instead of `false` or `true`. An API entry with any other value is skipped with a console warning. There is no migration: a source stored with the old boolean lights without spending until it is registered again or opened in the editor and saved. The editor shows a select instead of a checkbox.
