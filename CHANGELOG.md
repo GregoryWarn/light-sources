@@ -3,6 +3,7 @@
 ### Added
 
 * **A light can spend a charge and burn on its item.** A new `consume` value, `"charge"`, spends one charge of a single object instead of one copy of a stack: a torch that can be lit three times, a wand with charges. The light burns on that item, so it goes out when the item leaves the character and travels with it when a module carries the item onto the map. Two new compatibility paths say where charges live: **Item Charges Path** (charges left, e.g. `system.uses.value`) and an optional **Charges Spent Path** for systems that count charges used instead (e.g. `system.uses.spent`). Both can be seeded through `registerCompatibility`. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#consume).
+* **A lit item handed to another character keeps its light.** A new API function, `handOverLight`, lets a system or module that gives items between characters take the light along. Create the copy on the receiver, call `handOverLight(original, copy)`, then remove the original. The light moves with the time it had left and spends nothing, so a torch with charges doesn't lose one to a lighting that never happened. Between two players it goes through the GM. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#handoverlightfromitem-toitem).
 
 ### Changed
 

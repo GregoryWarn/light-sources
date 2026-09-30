@@ -315,6 +315,44 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. Once the light is fo
 
 ---
 
+## `handOverLight(fromItem, toItem)`
+
+Moves the light burning on an Item to an Item on another actor. It is meant for a system or module that gives an Item to another character by creating a copy on the receiver and removing the original: a trade, a barter, a drag from one sheet to another.
+
+```js
+const [copy] = await receiver.createEmbeddedDocuments("Item", [original.toObject()]);
+const { lit, reason } = await game.lightSources.handOverLight(original, copy);
+await original.delete();
+```
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `fromItem` | `Item` | The Item the light burns on now, **still on the giving actor**. |
+| `toItem` | `Item` | The Item that takes it, **already on the receiving actor**. It must match the same light source as `fromItem`. |
+
+**The call order.** Create the copy on the receiver, call this, then remove the original. Removing the original first puts its light out, as any removal of a burning Item does, and there is nothing left to hand over. Removed afterwards, the original has no light on it, so nothing goes out.
+
+The flame moves, it is not copied. It keeps its source, pattern, time left and covered state, and **nothing is spent**: a torch with charges arrives with the charges it had. The light is created on the receiver first and only then put out on the giver. If putting it out fails, the receiver's light is removed again, so the flame is only ever in one place.
+
+Returns `Promise<{ lit: boolean, reason: string | null }>`. When `lit` is `false`, nothing moved, and `reason` says why:
+
+| `reason` | Meaning |
+| :--- | :--- |
+| `"notBurning"` | `fromItem` is not the Item its actor's light burns on: nothing is lit, another Item is, or the light belongs to no Item. |
+| `"sourceRemoved"` | The light's source was deleted from the configuration. |
+| `"burnedOut"` | The light has burned out and is waiting for the expiry sweep. |
+| `"occupied"` | The receiver already has a light burning. That light is never replaced, and the giver keeps its own, so you can cancel the hand-over. |
+| `"noGm"` | The hand-over needed the GM, and no active GM answered. |
+| `"invalid"` | The call was refused: an Item not on an actor (or on one in a compendium), the same actor on both sides, a `toItem` that does not match the light's source, a requester that does not own the giving actor, or a removal from the giver that another module cancelled. |
+
+**Runs on any client.** When the current user can write both actors, the light moves right there. Between two players neither can write the other's actor, so it asks the active GM through a query, and the GM moves it only when the requester owns the giving actor. The receiver's permission is not asked: giving is the point. Without an active GM, a hand-over between two players returns `"noGm"`.
+
+**Silent.** No chat message and no notification. Tell your own user from `reason`.
+
+**Only a light that belongs to an Item moves.** A `"copy"` light turned one of its items into the flame, and a `freeForAll` light has no item at all, so both return `"notBurning"`. Moving an Item between containers on the same actor keeps its id, so its light needs nothing.
+
+---
+
 ## Chat Announcements
 
 The module posts its own styled chat card for these light events, on every source regardless of how it was registered:
@@ -328,7 +366,7 @@ The module posts its own styled chat card for these light events, on every sourc
 | A light is extinguished | ❌ Silent. |
 | Switching between a source's patterns | ❌ Silent — the same flame is being reshaped, not lit. |
 | Covering or uncovering a light | ❌ Silent — nothing was lit or put out, mirroring extinguishing. |
-| `dropLightWithItem` and `pickupGroundLight` | ❌ Silent — the calling module tells its own users. |
+| `dropLightWithItem`, `pickupGroundLight` and `handOverLight` | ❌ Silent — the calling module tells its own users. |
 
 The world setting **Announce Lights in Chat** turns off the "lit" card. The other cards always post, and there is no per-source way to opt out.
 

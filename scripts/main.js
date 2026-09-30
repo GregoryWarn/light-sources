@@ -13,12 +13,17 @@ import { registerTokenHudHooks } from "./token-hud.js";
 import { registerInteractiveLightHooks } from "./interactive-lights.js";
 import { startExpiryTicker, sweepExpiredLights, handleSocketMessage, onDeleteItem } from "./light-manager.js";
 import {
-  registerSources, registerCompatibility, activate, deactivate, getActive, dropLightWithItem, pickupGroundLight
+  registerSources, registerCompatibility, activate, deactivate, getActive, dropLightWithItem, pickupGroundLight,
+  handOverLight, handleHandOverQuery
 } from "./api.js";
 
 Hooks.once("init", () => {
   // Registered in init: core caches the list of expiry events the first time it reads it.
   CONFIG.ActiveEffect.expiryEvents[EXPIRY_EVENT] = "LIGHTSOURCES.Effect.ExpiryEvent";
+
+  // Registered on every client, since `User#query` refuses a name it does not know; the
+  // handler itself refuses anywhere but a GM.
+  CONFIG.queries[`${MODULE_ID}.handOverLight`] = handleHandOverQuery;
 
   // Seed the compatibility settings from the active system's preset (if any) so
   // known systems work out of the box; unknown systems start fully unconfigured.
@@ -123,7 +128,8 @@ Hooks.once("ready", () => {
   // convenience `game.lightSources` alias. Assigned in `ready` so settings are
   // available and compendium UUIDs can be resolved by callers.
   const api = {
-    registerSources, registerCompatibility, activate, deactivate, getActive, dropLightWithItem, pickupGroundLight
+    registerSources, registerCompatibility, activate, deactivate, getActive, dropLightWithItem, pickupGroundLight,
+    handOverLight
   };
   game.modules.get(MODULE_ID).api = api;
   game.lightSources = api;

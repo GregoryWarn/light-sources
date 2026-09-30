@@ -76,22 +76,28 @@ export const FLAGS = {
 };
 
 /**
- * Why the public `pickupGroundLight` left the actor unlit, returned to the caller as
- * `reason` instead of shown as a notification: it runs on the GM's client, inside
- * whatever request the caller is serving, so only the caller can tell the right user.
- * - `INVALID`: the call itself was refused (not a GM client, or bad arguments).
+ * Why the public `pickupGroundLight` or `handOverLight` left an actor unlit, returned
+ * to the caller as `reason` instead of shown as a notification: they often run on the
+ * GM's client, inside whatever request the caller is serving, so only the caller can
+ * tell the right user.
+ * - `INVALID`: the call itself was refused (not a GM client, bad arguments, or a
+ *   requester without permission), or a removal it needed was cancelled.
  * - `MISSING`: the light is no longer on the scene.
  * - `SOURCE_REMOVED`: its light source was deleted from the config meanwhile.
- * - `BURNED_OUT`: it burned out while it lay on the ground.
+ * - `BURNED_OUT`: it burned out, on the ground or while it burned.
  * - `OCCUPIED`: the actor already has a light burning, which is never replaced.
- * @type {{INVALID: string, MISSING: string, SOURCE_REMOVED: string, BURNED_OUT: string, OCCUPIED: string}}
+ * - `NOT_BURNING`: `fromItem` is not the Item its actor's light burns on.
+ * - `NO_GM`: the move needed the GM, and no active GM answered.
+ * @type {{INVALID: string, MISSING: string, SOURCE_REMOVED: string, BURNED_OUT: string, OCCUPIED: string, NOT_BURNING: string, NO_GM: string}}
  */
-export const PICKUP_REASONS = {
+export const LIGHT_REASONS = {
   INVALID: "invalid",
   MISSING: "missing",
   SOURCE_REMOVED: "sourceRemoved",
   BURNED_OUT: "burnedOut",
-  OCCUPIED: "occupied"
+  OCCUPIED: "occupied",
+  NOT_BURNING: "notBurning",
+  NO_GM: "noGm"
 };
 
 /**

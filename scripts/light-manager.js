@@ -8,7 +8,7 @@
 
 import {
   MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, CONSUME_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS, EXPIRY_EVENT,
-  PICKUP_REASONS
+  LIGHT_REASONS
 } from "./constants.js";
 import {
   findMatchingItems, buildLightMessage, getItemRemaining, getQuantityPath, getChargesPath, getChargesSpentPath, getSources,
@@ -578,17 +578,19 @@ export async function dropItemLight(item, scene, { x, y, elevation, levels }, ma
 }
 
 /**
- * Work out whether a light taken off the ground can burn on a token again. Shared by
- * the Token HUD's pickup and the public API's, so both refuse on the same rule.
- * @param {object} ground The light's `GROUND_LIGHT` payload.
+ * Work out whether a flame leaving where it burns can burn on a token again. Shared by
+ * the Token HUD's pickup, the public API's, and the hand-over between actors, so all of
+ * them refuse on the same rule. A ground light's payload and an effect's carry the same
+ * fields read here.
+ * @param {object} flame A `GROUND_LIGHT` or `EFFECT_LIGHT` payload.
  * @returns {{source?: object, pattern?: object, reason: string|null}} The source and
- *   pattern to light, or the `PICKUP_REASONS` value explaining why it cannot be lit.
+ *   pattern to light, or the `LIGHT_REASONS` value explaining why it cannot be lit.
  */
-function readGroundLight(ground) {
-  const source = getSources().find(s => s.id === ground.sourceId);
-  const pattern = source?.patterns?.find(p => p.id === ground.patternId);
-  if ( !pattern ) return { reason: PICKUP_REASONS.SOURCE_REMOVED };
-  if ( isExpired(ground, Date.now()) ) return { reason: PICKUP_REASONS.BURNED_OUT };
+function readFlame(flame) {
+  const source = getSources().find(s => s.id === flame.sourceId);
+  const pattern = source?.patterns?.find(p => p.id === flame.patternId);
+  if ( !pattern ) return { reason: LIGHT_REASONS.SOURCE_REMOVED };
+  if ( isExpired(flame, Date.now()) ) return { reason: LIGHT_REASONS.BURNED_OUT };
   return { source, pattern, reason: null };
 }
 
@@ -610,18 +612,18 @@ function readGroundLight(ground) {
  * @param {Item} item The Item the light returns with, already on the picking actor.
  * @param {AmbientLightDocument} light A ground light placed by `dropItemLight`.
  * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the actor is now lit,
- *   and otherwise the `PICKUP_REASONS` value saying why not.
+ *   and otherwise the `LIGHT_REASONS` value saying why not.
  */
 export async function pickupItemLight(item, light) {
   const ground = light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT);
   const hidden = !!light.hidden;
-  if ( !(await deleteAmbientLight(light.parent?.id, light.id)) ) return { lit: false, reason: PICKUP_REASONS.MISSING };
+  if ( !(await deleteAmbientLight(light.parent?.id, light.id)) ) return { lit: false, reason: LIGHT_REASONS.MISSING };
 
-  const { source, pattern, reason } = readGroundLight(ground);
+  const { source, pattern, reason } = readFlame(ground);
   if ( reason ) return { lit: false, reason };
 
   const actor = item.parent;
-  if ( getLightEffect(actor) ) return { lit: false, reason: PICKUP_REASONS.OCCUPIED };
+  if ( getLightEffect(actor) ) return { lit: false, reason: LIGHT_REASONS.OCCUPIED };
 
   await createLightEffect(actor, source, pattern, {
     mode: ground.mode,
@@ -632,11 +634,53 @@ export async function pickupItemLight(item, light) {
 }
 
 /**
+ * Move the light burning on `fromItem` to `toItem`, on another actor, spending nothing: the
+ * flame keeps its source, pattern, expiry and covered state. Created on the receiver first and
+ * only then removed from the giver, and taken back if that fails, so it is in one place at the
+ * end. Runs on a client that can write both actors, and announces nothing.
+ * @param {Item} fromItem The Item the light burns on now.
+ * @param {Item} toItem The Item that takes it, already on the receiving actor.
+ * @returns {Promise<{lit: boolean, reason: string|null}>}
+ */
+export async function moveItemLight(fromItem, toItem) {
+  const giver = fromItem.parent;
+  const receiver = toItem.parent;
+  if ( giver === receiver ) return { lit: false, reason: LIGHT_REASONS.INVALID };
+
+  // A "copy" or free-for-all flame has no itemId, so it fails here too: it never belonged to an Item.
+  const active = getActiveLight(giver);
+  if ( !active?.itemId || (active.itemId !== fromItem.id) ) return { lit: false, reason: LIGHT_REASONS.NOT_BURNING };
+
+  const { source, pattern, reason } = readFlame(active);
+  if ( reason ) return { lit: false, reason };
+  if ( !findMatchingItems(receiver, source, { anyCount: true }).some(i => i.id === toItem.id) ) {
+    return { lit: false, reason: LIGHT_REASONS.INVALID };
+  }
+  if ( getLightEffect(receiver) ) return { lit: false, reason: LIGHT_REASONS.OCCUPIED };
+
+  await createLightEffect(receiver, source, pattern, {
+    mode: active.mode, expiresAtWorld: active.expiresAtWorld, expiresAtReal: active.expiresAtReal
+  }, { stowed: !!source.coverable && active.stowed, itemId: toItem.id });
+  try {
+    await deactivateLight(giver);
+  } catch(err) {
+    await deactivateLight(receiver);
+    throw err;
+  }
+  // A cancelled deletion resolves without throwing, as in moveLightToGround.
+  if ( getLightEffect(giver) ) {
+    await deactivateLight(receiver);
+    return { lit: false, reason: LIGHT_REASONS.INVALID };
+  }
+  return { lit: true, reason: null };
+}
+
+/**
  * Put a light out when the Item it burns on leaves its actor — deleted from a sheet,
  * dragged to another actor, handed away by another module. Without this the token
  * would go on glowing with nothing left to glow with. A light that moves *with* its
- * Item has already left the actor by the time the Item goes (see `dropItemLight`), so
- * this finds nothing to do then.
+ * Item has already left the actor by the time the Item goes (see `dropItemLight` and
+ * `moveItemLight`), so this finds nothing to do then.
  *
  * `deleteItem` fires on every client; only the one that deleted the Item acts, and it
  * can, because deleting an embedded Item already required owning the actor.
@@ -683,9 +727,9 @@ export async function pickupLight(actor, light) {
   // copy of a flame still lying on the map. `removeAmbientLight` reports the cause.
   if ( !removed ) return;
 
-  const { source, pattern, reason } = readGroundLight(ground);
+  const { source, pattern, reason } = readFlame(ground);
   if ( reason ) {
-    const key = reason === PICKUP_REASONS.BURNED_OUT ? "LIGHTSOURCES.Hud.PickupBurnedOut" : "LIGHTSOURCES.Hud.PickupSourceGone";
+    const key = reason === LIGHT_REASONS.BURNED_OUT ? "LIGHTSOURCES.Hud.PickupBurnedOut" : "LIGHTSOURCES.Hud.PickupSourceGone";
     ui.notifications.warn(game.i18n.format(key, { item: ground.itemName }));
     return;
   }

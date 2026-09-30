@@ -6,11 +6,13 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, SETTINGS, FLAGS, DURATION_MODES, CONSUME_MODES, PICKUP_REASONS } from "./constants.js";
+import { MODULE_ID, SETTINGS, FLAGS, DURATION_MODES, CONSUME_MODES, LIGHT_REASONS } from "./constants.js";
 import {
   getSources, setSources, makePattern, getItemTypes, getActorTypes, getQuantityPath, getChargesPath, getChargesSpentPath
 } from "./helpers.js";
-import { activateLight, deactivateLight, getActiveLight, dropItemLight, pickupItemLight } from "./light-manager.js";
+import {
+  activateLight, deactivateLight, getActiveLight, dropItemLight, pickupItemLight, moveItemLight
+} from "./light-manager.js";
 
 /**
  * The usage fields a caller supplies, with the API's documented defaults filled
@@ -335,7 +337,7 @@ export async function dropLightWithItem(item, { scene, x, y, elevation = 0, leve
  * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the actor is now lit, and why not.
  */
 export async function pickupGroundLight(item, light) {
-  const refused = { lit: false, reason: PICKUP_REASONS.INVALID };
+  const refused = { lit: false, reason: LIGHT_REASONS.INVALID };
   if ( !game.user.isGM ) {
     console.warn(`${MODULE_ID} | pickupGroundLight runs on a GM client only.`);
     return refused;
@@ -351,4 +353,71 @@ export async function pickupGroundLight(item, light) {
     return refused;
   }
   return pickupItemLight(item, light);
+}
+
+/**
+ * Hand the light burning on `fromItem` to `toItem`, an Item on another actor — for a
+ * system or module that gives an Item to another character by creating a copy on the
+ * receiver and removing the original. The flame moves, it is not copied: it keeps its
+ * source, pattern, time left and covered state, spends nothing, and ends up in exactly
+ * one place.
+ *
+ * Call it after creating the copy and before removing the original. Removing the
+ * original first puts its light out, as any removal of a burning Item does; removing it
+ * afterwards finds nothing burning on it.
+ *
+ * Runs on any client. When the caller can write both actors it moves the light itself;
+ * otherwise — between two players — it asks the active GM through a query, and the GM
+ * moves it only when the caller owns the giving actor. Silent: no chat and no
+ * notification. When `lit` is false, `reason` is `"notBurning"` (`fromItem` is not the
+ * Item the light burns on, which includes every `"copy"` and free-for-all light),
+ * `"sourceRemoved"`, `"burnedOut"`, `"occupied"` (the receiver's light is never replaced,
+ * and the giver keeps its own), `"noGm"`, or `"invalid"` for a refused call.
+ * @param {Item} fromItem The Item the light burns on now, still on the giving actor.
+ * @param {Item} toItem The Item that takes it, already on the receiving actor.
+ * @returns {Promise<{lit: boolean, reason: string|null}>} Whether the receiver is now lit, and why not.
+ */
+export async function handOverLight(fromItem, toItem) {
+  const refused = { lit: false, reason: LIGHT_REASONS.INVALID };
+  if ( !isCarriedItem(fromItem) || !isCarriedItem(toItem) ) {
+    console.warn(`${MODULE_ID} | handOverLight expected two Items, each on an actor.`);
+    return refused;
+  }
+  if ( fromItem.parent.isOwner && toItem.parent.isOwner ) return moveItemLight(fromItem, toItem);
+  const gm = game.users.activeGM;
+  if ( !gm ) return { lit: false, reason: LIGHT_REASONS.NO_GM };
+  try {
+    return await gm.query(`${MODULE_ID}.handOverLight`, { fromUuid: fromItem.uuid, toUuid: toItem.uuid }, { timeout: 20 * 1000 });
+  } catch(err) {
+    console.warn(`${MODULE_ID} | handOverLight got no answer from the GM.`, err);
+    return { lit: false, reason: LIGHT_REASONS.NO_GM };
+  }
+}
+
+/**
+ * The GM's half of `handOverLight`, reached through a query. The requester may hand over only a
+ * light burning on an actor it owns. The receiver needs no permission from it, because giving
+ * is the point. `context.user` is the sender, filled in by the server, so it cannot be forged.
+ * @param {{fromUuid: string, toUuid: string}} data The two Items' uuids.
+ * @param {{user: User}} context The query context core passes to a handler.
+ * @returns {Promise<{lit: boolean, reason: string|null}>}
+ */
+export async function handleHandOverQuery({ fromUuid, toUuid } = {}, { user } = {}) {
+  const refused = { lit: false, reason: LIGHT_REASONS.INVALID };
+  if ( !game.user.isGM || !user ) return refused;
+  if ( (typeof fromUuid !== "string") || (typeof toUuid !== "string") ) return refused;
+  const [fromItem, toItem] = await Promise.all([foundry.utils.fromUuid(fromUuid), foundry.utils.fromUuid(toUuid)]);
+  if ( !isCarriedItem(fromItem) || !isCarriedItem(toItem) ) return refused;
+  if ( !fromItem.parent.testUserPermission(user, "OWNER") ) return refused;
+  return moveItemLight(fromItem, toItem);
+}
+
+/**
+ * Both functions above use it: the item must be an Item embedded in a world Actor. A
+ * compendium's is refused, so a query cannot have the GM write into a pack.
+ * @param {*} item The value to test.
+ * @returns {boolean}
+ */
+function isCarriedItem(item) {
+  return (item?.documentName === "Item") && (item.parent?.documentName === "Actor") && !item.pack;
 }
