@@ -21,7 +21,7 @@
       },
       "AnnounceLit": {
         "Name": "Announce Lights in Chat",
-        "Hint": "Post a chat message whenever a light source is lit. Other light events (extinguished, dropped, picked up, burned out) are unaffected."
+        "Hint": "Post a chat message whenever a light source is lit. Other light events (dropped, picked up, burned out) are unaffected."
       }
     },
     "Config": {
