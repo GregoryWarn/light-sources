@@ -1,3 +1,10 @@
+# 0.7.0
+
+### Added
+
+* **Advanced light options per pattern** (#12). Each pattern in the light editor has a folded **Advanced** section with Foundry's coloration technique, luminosity, attenuation, saturation, contrast and shadows. They apply only when **Use Advanced Options** is ticked, and then both on the token and on a light dropped on the ground. Left off, a pattern behaves exactly as before: the token keeps its own advanced options and a dropped light uses Foundry's defaults. Not offered for a darkness source. `registerSources` accepts them as an optional `advanced` object on a pattern's `light`. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#advanced).
+
+
 # 0.6.0
 
 ### Added
