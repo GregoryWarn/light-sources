@@ -141,7 +141,7 @@ Hooks.once("ready", async () => {
     {
       uuid: "Compendium.my-system.equipment.Item.torch01",
       patterns: [
-        { name: "Standard", light: { dim: 40, bright: 20, color: "#ff8800", animation: { type: "torch", speed: 5, intensity: 5 } } }
+        { id: "lit", light: { dim: 40, bright: 20, color: "#ff8800", animation: { type: "torch", speed: 5, intensity: 5 } } }
       ],
       consume: "copy",
       durationMode: "world",

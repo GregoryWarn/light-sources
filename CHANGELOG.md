@@ -1,3 +1,10 @@
+# Unreleased
+
+### Changed
+
+* **Every registered pattern needs an `id`.** A pattern was identified by its `name`, so a translated name gave the same pattern different ids on clients with different languages, and a pattern with no name, which the docs allowed for a source with a single pattern, was rejected. A pattern now has an `id`, a key unique within its entry that is never shown. Its `name` is only the label: it can be localized or left empty. An entry with a pattern missing an `id`, or with two patterns sharing one, is skipped with a console warning. `activate`'s `pattern` option takes the pattern's id instead of its name. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#patterns).
+
+
 # 0.4.0
 
 ### Added

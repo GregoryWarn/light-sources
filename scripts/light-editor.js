@@ -279,7 +279,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     return entries
       .sort((a, b) => Number(a[0]) - Number(b[0]))
       // The id travels in a hidden field, so a renamed pattern keeps it: a registered
-      // pattern's id is the name its module gave it, whatever the GM calls it now.
+      // pattern's id is the one its module gave it, whatever the GM calls it now.
       .map(([, p]) => ({
         id: p.id || foundry.utils.randomID(),
         name: (p.name ?? "").trim(),

@@ -110,7 +110,8 @@ Each object in the `entries` array describes a single light source:
   uuid: string,              // Required – compendium or world item UUID (primary key)
   patterns: [                // Required – one or more light patterns
     {
-      name: string,          // Display name shown in the Token HUD
+      id: string,            // Required – stable key, unique within the entry; never shown, never translated
+      name: string,          // Optional – label shown in the Token HUD when there are several patterns; may be localized or empty
       light: {               // Foundry light configuration
         dim: number,         //   Dim light radius (in grid units)
         bright: number,      //   Bright light radius (in grid units)
@@ -145,6 +146,8 @@ The item's `name`, `img`, and `type` are read automatically — you never need t
 
 #### `patterns`
 A source can have **multiple light patterns** — different ways the same item emits light. For example, a lantern might have a "Low" pattern (dim, warm glow) and a "High" pattern (bright, wide radius). Each pattern appears as a separate entry in the Token HUD. If a source has only one pattern, no sub-label is shown.
+
+Every pattern has an **`id`**: a key you choose, unique within the entry, that stays the same across versions of your module. A lit light, a light on the ground and the GM's edits refer to the pattern by it, and `activate` selects a pattern by it. Change it and lights lit from the old id can no longer be dropped or picked up. The **`name`** is only a label, separate from the id on purpose: it can be localized with `game.i18n`, so it may differ between clients, the GM can rename it, and a source with a single pattern can leave it empty.
 
 Consumption and duration are shared across all patterns of the same source; only the emitted light shape differs. Moving between the patterns of the light already burning reshapes that flame in place: nothing is spent, the countdown keeps running from when the source was first lit, and nothing is announced in chat. A player can therefore switch a lantern between "Low" and "High" freely, and can still switch after burning the last item in the stack.
 
@@ -211,16 +214,16 @@ Lights a registered source on an actor, exactly as clicking it in the Token HUD 
 
 ```js
 const lit = await game.lightSources.activate(actor, "Compendium.my-system.spells.Item.light01");
-const lit = await game.lightSources.activate(actor, sourceUuid, { pattern: "Narrow Beam" });
+const lit = await game.lightSources.activate(actor, sourceUuid, { pattern: "narrow" });
 ```
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `actor` | `Actor` | The actor to light. **Must be owned by the current user.** |
 | `id` | `string` | The source's id: its `uuid` for any source with an Item, and for a source the GM added by name, the id `getActive` reports. |
-| `options.pattern` | `string` | Name of the pattern to light. Defaults to the source's first pattern. |
+| `options.pattern` | `string` | Id of the pattern to light. Defaults to the source's first pattern. |
 
-Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: "copy"` or `"charge"` source's item is no longer carried or has nothing left to spend. It is also refused while the light of every matching item, dropped from the Token HUD, lies on the ground (see [Dropping](#dropping)), and when the game system or another module refuses the light's effect on the actor. Nothing is spent and nothing is announced then, and the user sees a warning. PF2e refuses every effect a module adds to an actor, so no light can be lit there.
+Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that id, when no pattern has the given id, when the current user does not own the actor, or when a `consume: "copy"` or `"charge"` source's item is no longer carried or has nothing left to spend. It is also refused while the light of every matching item, dropped from the Token HUD, lies on the ground (see [Dropping](#dropping)), and when the game system or another module refuses the light's effect on the actor. Nothing is spent and nothing is announced then, and the user sees a warning. PF2e refuses every effect a module adds to an actor, so no light can be lit there.
 
 **Ownership.** Foundry refuses embedded document creation on an actor the current user does not own, so from a player's client this reaches their own character and nothing else; from the GM's client it reaches anyone. This is checked up front and reported as `false` rather than left to throw. There is deliberately **no relay** that would let one player light a light on another player's actor — routing that through the GM would mean any client could ask the GM to write ActiveEffects onto any actor, which is a larger permission surface than this module is willing to open. If your system needs to light someone else's character, run that part of the flow on the GM's client. The one relay is [`handOverLight`](#handoverlightfromitem-toitem): it goes through the GM to put a light on another player's actor, but only a light it moves off an actor the requester owns, so it never lights anything new.
 
@@ -251,7 +254,7 @@ const light = game.lightSources.getActive(actor);
 // → null, or { sourceId, patternId, patternName, itemName, itemId, mode, expiresAtWorld, expiresAtReal, stowed }
 ```
 
-Returns the active light payload, or `null` when the actor has no light lit. `sourceId` is the source's id — its `uuid` when it has one — and `patternId` the pattern's, which for a registered pattern is the name it was registered under. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
+Returns the active light payload, or `null` when the actor has no light lit. `sourceId` is the source's id — its `uuid` when it has one — and `patternId` the pattern's: for a registered pattern, the `id` it was registered with. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
 
 `itemId` is the id of the carried Item that is burning. Every source has one except two: a `"copy"` source turned one of its items into the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out, unless whatever moved it took the light along with [`dropLightWithItem`](#droplightwithitemitem-where) or [`handOverLight`](#handoverlightfromitem-toitem).
 
@@ -379,7 +382,7 @@ The world setting **Announce Lights in Chat** turns off the "lit" card. The othe
 ## Deduplication and Updates
 
 - **Same UUID, same source**: Registering a UUID that is already registered on this client replaces that source.
-- **Pattern ids are their names**: A pattern's id is the `name` you register it under, so names must be unique within an entry; an entry with two patterns of the same name is skipped with a console warning. A lit light records that id, which is why renaming a pattern in your module makes it a new pattern: a light lit from the old name can no longer be dropped or picked up.
+- **Pattern ids**: Every pattern needs an `id`, unique within its entry; an entry with a pattern missing one, or with two patterns sharing one, is skipped with a console warning. See [`patterns`](#patterns).
 - **Unresolvable UUID**: Logged as `console.warn` and skipped.
 - **Removed from your list**: A source you stop registering is gone from the next session on, unless the GM has edited it (see below).
 
@@ -434,6 +437,7 @@ Hooks.once("ready", async () => {
       uuid: "Compendium.my-system.equipment.Item.torch01",
       patterns: [
         {
+          id: "lit",
           name: "Standard",
           light: {
             dim: 40,
@@ -453,6 +457,7 @@ Hooks.once("ready", async () => {
       uuid: "Compendium.my-system.equipment.Item.lantern01",
       patterns: [
         {
+          id: "low",
           name: "Low",
           light: {
             dim: 30,
@@ -464,6 +469,7 @@ Hooks.once("ready", async () => {
           }
         },
         {
+          id: "high",
           name: "High",
           light: {
             dim: 60,
@@ -483,6 +489,7 @@ Hooks.once("ready", async () => {
       uuid: "Compendium.my-system.equipment.Item.magicglow",
       patterns: [
         {
+          id: "glow",
           name: "Glow",
           light: {
             dim: 20,
@@ -505,6 +512,7 @@ Hooks.once("ready", async () => {
       uuid: "Compendium.my-system.spells.Item.daylight01",
       patterns: [
         {
+          id: "daylight",
           name: "Daylight",
           light: {
             dim: 60,

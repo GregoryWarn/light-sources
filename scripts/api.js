@@ -38,9 +38,11 @@ function usageFields(entry) {
  * `ready` hook does exactly that). Calling again with the same uuid replaces that
  * source.
  *
- * A source's id is its uuid, and a pattern's id is the name it is registered under,
- * so lights that are burning, or lying on the ground, find their source and pattern
- * again after the registry is rebuilt. The GM's edits are stored apart, as records
+ * A source's id is its uuid, and each pattern carries an `id` of its own, so lights
+ * that are burning, or lying on the ground, find their source and pattern again after
+ * the registry is rebuilt. The pattern id is separate from its `name` because a name
+ * is a label: it may be translated, so it can differ between clients, or be left
+ * empty. The GM's edits are stored apart, as records
  * of their own with the same id (see `getSources` in `helpers.js`), so registering
  * never overwrites them.
  *
@@ -78,9 +80,9 @@ export async function registerSources(entries, { managedBy = null } = {}) {
       continue;
     }
 
-    const names = entry.patterns.map(p => p?.name);
-    if ( new Set(names).size !== names.length ) {
-      console.warn(`${MODULE_ID} | Skipping light source "${entry.uuid}": pattern names are their ids and must be unique.`, entry);
+    const ids = entry.patterns.map(p => p?.id);
+    if ( ids.some(id => !id || (typeof id !== "string")) || (new Set(ids).size !== ids.length) ) {
+      console.warn(`${MODULE_ID} | Skipping light source "${entry.uuid}": every pattern needs an id, unique within the entry.`, entry);
       continue;
     }
 
@@ -92,7 +94,7 @@ export async function registerSources(entries, { managedBy = null } = {}) {
       type: item.type,
       managedBy,
       ...usageFields(entry),
-      patterns: entry.patterns.map(p => ({ id: p?.name, name: p?.name, light: p?.light }))
+      patterns: entry.patterns.map(p => ({ id: p.id, name: p.name ?? "", light: p.light }))
     }, entry.uuid);
     if ( record ) setRegisteredSource(record);
   }
@@ -161,7 +163,7 @@ export async function registerCompatibility({ itemTypes, actorTypes, quantityPat
  * @param {string} id The source's id: its uuid when it has one. A source the GM added
  *   by name has no uuid, and its id is the one `getActive` reports.
  * @param {object} [options={}]
- * @param {string} [options.pattern] Name of the pattern to light. Defaults to the
+ * @param {string} [options.pattern] Id of the pattern to light. Defaults to the
  *   source's first pattern.
  * @returns {Promise<boolean>} True when the source is now lit.
  */
@@ -181,11 +183,10 @@ export async function activate(actor, id, { pattern } = {}) {
     return false;
   }
 
-  // Patterns are selected by name because that is what a caller registered them
-  // under; a pattern the GM added by hand has an id only this module knows.
-  const target = pattern ? source.patterns.find(p => p.name === pattern) : source.patterns[0];
+  // By id, never by name: a name is a label that may be translated or renamed by the GM.
+  const target = pattern ? source.patterns.find(p => p.id === pattern) : source.patterns[0];
   if ( !target ) {
-    console.warn(`${MODULE_ID} | Light source "${source.name}" has no pattern named "${pattern}".`);
+    console.warn(`${MODULE_ID} | Light source "${source.name}" has no pattern with the id "${pattern}".`);
     return false;
   }
 
