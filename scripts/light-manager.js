@@ -95,7 +95,10 @@ function buildLightChanges(pattern) {
     entry("token.light.dim", Math.max(0, Number(light.dim) || 0)),
     entry("token.light.bright", Math.max(0, Number(light.bright) || 0)),
     entry("token.light.angle", Number(light.angle) || 360),
-    entry("token.light.color", light.color || null),
+    // "No tint" is written as "", never null: core casts both to a null color, but
+    // some systems stringify every change value (Daggerheart's
+    // DhActiveEffect.getChangeValue), and a null there throws and drops the effect.
+    entry("token.light.color", light.color || ""),
     entry("token.light.alpha", Number.isFinite(alpha) ? alpha : 0.5),
     // Written even when false: an unset key would leave a token whose own light is a
     // darkness source emitting darkness at this pattern's radii.

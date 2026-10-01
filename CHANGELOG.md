@@ -12,6 +12,7 @@
 
 ### Fixed
 
+* **A light with no color works in Daggerheart.** A pattern whose color was left blank made Daggerheart throw an error when it was lit, and the token stayed dark. Such a light now shines with no tint, as it always did in other systems.
 * **A light source the GM removes stays removed.** Removing a source registered by another module used to last only until the next session, when the module registered it again. It is now listed under **Removed module light sources**, where Restore brings it back.
 * **`registerCompatibility` no longer tries to write world settings from a player's client**, which only a GM may do.
 
