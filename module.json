@@ -16,11 +16,21 @@
     }
   ],
   "styles": [
-    "styles/base.css",
-    "styles/light-sources-config.css",
-    "styles/compatibility-config.css",
-    "styles/light-editor.css",
-    "styles/token-hud.css"
+    {
+      "src": "styles/base.css"
+    },
+    {
+      "src": "styles/light-sources-config.css"
+    },
+    {
+      "src": "styles/compatibility-config.css"
+    },
+    {
+      "src": "styles/light-editor.css"
+    },
+    {
+      "src": "styles/token-hud.css"
+    }
   ],
   "esmodules": [
     "scripts/main.js"
@@ -29,18 +39,19 @@
     {
       "lang": "en",
       "name": "English",
-      "path": "languages/en.json"
+      "path": "languages/en.json",
+      "flags": {}
     },
     {
       "lang": "it",
       "name": "Italiano",
-      "path": "languages/it.json"
+      "path": "languages/it.json",
+      "flags": {}
     }
   ],
   "url": "https://github.com/brunocalado/light-sources",
   "manifest": "https://github.com/brunocalado/light-sources/releases/latest/download/module.json",
-  "download": "https://github.com/brunocalado/light-sources/releases/latest/download/module.zip",
-
+  "download": "https://github.com/brunocalado/light-sources/releases/download/0.3.0/module.zip",
   "media": [
     {
       "type": "setup",
@@ -50,8 +61,6 @@
       "flags": {}
     }
   ],
-  
   "socket": true,
-  
   "flags": {}
 }
