@@ -56,7 +56,7 @@ Both references point to the same object.
 
 ## `registerSources(entries, options?)`
 
-Register or update one or more light source definitions. Existing sources (matched by UUID) are updated in-place; new ones are appended.
+Register one or more light source definitions on this client. Registering a UUID again replaces that source.
 
 ### Parameters
 
@@ -197,7 +197,7 @@ Controls how the countdown timer works:
 | `"real"` | Burns down in real-world minutes, even while the game is paused or the owning player is offline. |
 
 #### `hudHidden`
-When `true`, the source is **never offered in the Token HUD palette** while it is unlit. It can only be lit through [`activate`](#activateactor-uuid-options) — which is the point: for a source whose real cost is a spell slot, a fatigue token or anything else only the game system knows how to charge, a palette entry is a way to get the light without paying for it.
+When `true`, the source is **never offered in the Token HUD palette** while it is unlit. It can only be lit through [`activate`](#activateactor-id-options) — which is the point: for a source whose real cost is a spell slot, a fatigue token or anything else only the game system knows how to charge, a palette entry is a way to get the light without paying for it.
 
 A source that is currently lit is always listed, `hudHidden` or not, because that row is what carries the extinguish, drop and cover controls. So the practical behaviour is: invisible while off, appears the moment something lights it, disappears again when it is put out.
 
@@ -308,7 +308,7 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. Once the light is fo
 | `reason` | Meaning |
 | :--- | :--- |
 | `"missing"` | The light is no longer on the scene: it burned out and was swept, or a GM deleted it. |
-| `"sourceRemoved"` | Its light source was deleted from the configuration. |
+| `"sourceRemoved"` | Its light source or pattern no longer exists: the GM deleted or removed it, the module that registers it was disabled with no GM edit to keep it, or that module renamed the pattern. |
 | `"burnedOut"` | It burned out while it lay on the ground. |
 | `"occupied"` | The actor already has a light burning. That light is never replaced. The picked-up flame goes out and the Item arrives unlit. Lighting it again costs what lighting always costs — for a `consume: "charge"` Item, another charge. |
 | `"refused"` | The game system or another module refused the light's effect on the actor. The picked-up flame goes out and the Item arrives unlit. |
@@ -342,7 +342,7 @@ Returns `Promise<{ lit: boolean, reason: string | null }>`. When `lit` is `false
 | `reason` | Meaning |
 | :--- | :--- |
 | `"notBurning"` | `fromItem` is not the Item its actor's light burns on: nothing is lit, another Item is, or the light belongs to no Item. |
-| `"sourceRemoved"` | The light's source was deleted from the configuration. |
+| `"sourceRemoved"` | The light's source or pattern no longer exists: the GM deleted or removed it, the module that registers it was disabled with no GM edit to keep it, or that module renamed the pattern. |
 | `"burnedOut"` | The light has burned out and is waiting for the expiry sweep. |
 | `"occupied"` | The receiver already has a light burning. That light is never replaced, and the giver keeps its own, so you can cancel the hand-over. |
 | `"noGm"` | The hand-over needed the GM, and no active GM answered. |
@@ -540,7 +540,7 @@ In this example:
 - **Torch** — consumed on use, lasts 60 in-game minutes, single pattern.
 - **Lantern** — consumed on use, lasts 4 in-game hours, two selectable brightness patterns.
 - **Magic Glow** — free for all actors of a type listed in `actorTypes` above, never consumed, unlimited duration, and coverable: it is a spell on an object, so it can be pocketed and taken back out rather than only destroyed.
-- **Daylight** — hidden from the Token HUD and lit only by [`activate`](#activateactor-uuid-options), because the spell slot it costs is something only the system can charge. A player cannot reach it from the palette and so cannot get the light without paying for it; once lit, its row appears with a working extinguish control for as long as it lasts.
+- **Daylight** — hidden from the Token HUD and lit only by [`activate`](#activateactor-id-options), because the spell slot it costs is something only the system can charge. A player cannot reach it from the palette and so cannot get the light without paying for it; once lit, its row appears with a working extinguish control for as long as it lasts.
 
 ---
 
