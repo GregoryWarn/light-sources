@@ -57,7 +57,9 @@
       "Coverable": "Can be covered",
       "ManagedByTooltip": "Registered by an external system or module: {name}",
       "NameOnlyBadge": "No Item",
-      "NameOnlyTooltip": "Registered by name only — no linked Item."
+      "NameOnlyTooltip": "Registered by name only — no linked Item.",
+      "RemovedHeading": "Removed module light sources",
+      "RestoreRemovedTooltip": "Bring this light source back, with the values its module registers."
     },
     "Patterns": {
       "Standard": "Standard",

@@ -7,7 +7,10 @@
  */
 
 import { MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DEFAULT_SOURCE_IMG, DURATION_MODES, CONSUME_MODES, CHAT_CARD_ACCENT } from "./constants.js";
-import { getSources, setSources, makePattern, buildChatCard, getItemTypes } from "./helpers.js";
+import {
+  getSources, getGmSources, setGmSources, getRegisteredSource, getRemovedSources, editSource, makePattern, buildChatCard,
+  getItemTypes
+} from "./helpers.js";
 import { LightSourceEditor } from "./light-editor.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
@@ -58,6 +61,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
    */
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
+    const edited = new Set(getGmSources().map(r => r.id));
     context.sources = getSources().map(source => ({
       ...source,
       // Null for a name-only source (no linked Item, so no document subtype).
@@ -74,15 +78,17 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
         [CONSUME_MODES.COPY]: game.i18n.localize("LIGHTSOURCES.Config.ConsumeCopy"),
         [CONSUME_MODES.CHARGE]: game.i18n.localize("LIGHTSOURCES.Config.ConsumeCharge")
       }[source.consume] ?? null,
-      // Only a source registered through the API has a module default behind it;
-      // one the GM added by hand has nothing to restore to. The control is then
-      // rendered for all of them but stays inert until the GM edits one, so the
-      // tooltip has to explain both states.
-      hasModuleDefault: !!source.moduleDefaults,
-      restoreTooltip: source.customized
+      // Only a source a module registers has a default behind it; one the GM added
+      // by hand has nothing to restore to. The control is then rendered for all of
+      // them but stays inert until the GM edits one, so the tooltip has to explain
+      // both states.
+      hasModuleDefault: !!getRegisteredSource(source.id),
+      customized: edited.has(source.id),
+      restoreTooltip: edited.has(source.id)
         ? game.i18n.localize("LIGHTSOURCES.Config.RestoreTooltip")
         : game.i18n.localize("LIGHTSOURCES.Config.RestoreDisabledTooltip")
     }));
+    context.removed = getRemovedSources();
     return context;
   }
 
@@ -127,16 +133,22 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       ui.notifications.warn("LIGHTSOURCES.Config.InvalidType", { localize: true });
       return;
     }
-    const sources = getSources();
     // Same uuid catches one compendium entry seen under another language's name; same
     // name + type stays blocked because two such sources would fight over the same
-    // items through findMatchingItems' name fallback.
-    if ( sources.some(s => (s.uuid === item.uuid) || ((s.name === item.name) && (s.type === item.type))) ) {
+    // items through findMatchingItems' name fallback. Checked against the effective
+    // list, so an Item a module already registers is refused too. A source the GM
+    // removed is still a record under that id, so it is refused as well: restoring it
+    // is the way back.
+    const taken = [...getSources(), ...getRemovedSources()];
+    if ( taken.some(s => (s.uuid === item.uuid) || ((s.name === item.name) && (s.type === item.type))) ) {
       ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Config.Duplicate", { name: item.name }));
       return;
     }
-    sources.push({
-      id: foundry.utils.randomID(),
+    const records = getGmSources();
+    // The uuid is the id, so the source is the same on every client and in every
+    // world that holds this Item.
+    records.push({
+      id: item.uuid,
       uuid: item.uuid,
       name: item.name,
       img: item.img,
@@ -149,7 +161,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       durationMinutes: 0,
       patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))]
     });
-    await setSources(sources);
+    await setGmSources(records);
     this.render();
   }
 
@@ -182,13 +194,13 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
     });
     if ( !name ) return;
 
-    const sources = getSources();
-    if ( sources.some(s => s.name === name) ) {
+    if ( getSources().some(s => s.name === name) ) {
       ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Config.Duplicate", { name }));
       return;
     }
 
-    sources.push({
+    const records = getGmSources();
+    records.push({
       id: foundry.utils.randomID(),
       uuid: null,
       name,
@@ -202,7 +214,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       durationMinutes: 0,
       patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))]
     });
-    await setSources(sources);
+    await setGmSources(records);
     this.render();
   }
 
@@ -264,14 +276,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
    */
   async _onToggleFreeForAll(event, target) {
     const sourceId = target.closest("[data-source-id]")?.dataset.sourceId;
-    const sources = getSources();
-    const source = sources.find(s => s.id === sourceId);
-    if ( !source ) return;
-    source.freeForAll = !source.freeForAll;
-    // Freeze the source against the next registerSources call, exactly as saving
-    // the light editor does (see `_onFormSubmit` in light-editor.js).
-    if ( source.moduleDefaults ) source.customized = true;
-    await setSources(sources);
+    await editSource(sourceId, source => source.freeForAll = !source.freeForAll);
     this.render();
   }
 
@@ -288,14 +293,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
    */
   async _onToggleHudHidden(event, target) {
     const sourceId = target.closest("[data-source-id]")?.dataset.sourceId;
-    const sources = getSources();
-    const source = sources.find(s => s.id === sourceId);
-    if ( !source ) return;
-    source.hudHidden = !source.hudHidden;
-    // Freeze the source against the next registerSources call, exactly as saving
-    // the light editor does (see `_onFormSubmit` in light-editor.js).
-    if ( source.moduleDefaults ) source.customized = true;
-    await setSources(sources);
+    await editSource(sourceId, source => source.hudHidden = !source.hudHidden);
     this.render();
   }
 
@@ -312,37 +310,25 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   /**
-   * Discard the GM's edits to the clicked source and restore the values its
-   * managing module last supplied, unfreezing it so `registerSources` resumes
-   * updating it automatically. Declared in DEFAULT_OPTIONS.actions.
+   * Discard the GM's record for the clicked source, so the values its module
+   * registers apply again. Also the way back for a registered source the GM removed,
+   * since that removal is a record too. Declared in DEFAULT_OPTIONS.actions.
    * @param {PointerEvent} event The originating click event.
    * @param {HTMLElement} target The element bearing the data-action.
    * @returns {Promise<void>}
    */
   async _onRestoreDefault(event, target) {
     const sourceId = target.closest("[data-source-id]")?.dataset.sourceId;
-    const sources = getSources();
-    const source = sources.find(s => s.id === sourceId);
-    if ( !source?.customized ) return;
+    const records = getGmSources();
+    const record = records.find(r => r.id === sourceId);
+    if ( !record ) return;
+    const name = getRegisteredSource(sourceId)?.name ?? record.name;
     const confirmed = await DialogV2.confirm({
       window: { title: "LIGHTSOURCES.Config.RestoreTitle" },
-      content: `<p>${game.i18n.format("LIGHTSOURCES.Config.RestoreContent", { name: source.name })}</p>`
+      content: `<p>${game.i18n.format("LIGHTSOURCES.Config.RestoreContent", { name: foundry.utils.escapeHTML(name) })}</p>`
     });
     if ( !confirmed ) return;
-
-    Object.assign(source, source.moduleDefaults);
-    for ( const pattern of source.patterns ) {
-      // A pattern with no snapshot was added by the GM, not by the module: a
-      // restore reverts the module's own patterns, it never deletes work the
-      // module did not supply. The next registerSources call — which the source
-      // is no longer frozen against — prunes any pattern the module has dropped.
-      if ( !pattern.moduleLight ) continue;
-      pattern.name = pattern.moduleName;
-      pattern.light = foundry.utils.deepClone(pattern.moduleLight);
-    }
-    source.customized = false;
-
-    await setSources(sources);
+    await setGmSources(records.filter(r => r.id !== sourceId));
     this.render();
   }
 
@@ -359,10 +345,14 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
     if ( !source ) return;
     const confirmed = await DialogV2.confirm({
       window: { title: "LIGHTSOURCES.Config.DeleteTitle" },
-      content: `<p>${game.i18n.format("LIGHTSOURCES.Config.DeleteContent", { name: source.name })}</p>`
+      content: `<p>${game.i18n.format("LIGHTSOURCES.Config.DeleteContent", { name: foundry.utils.escapeHTML(source.name) })}</p>`
     });
     if ( !confirmed ) return;
-    await setSources(getSources().filter(s => s.id !== sourceId));
+    // A source a module registers comes back with the next registration, so removing
+    // it is a record of its own (a tombstone) that Restore deletes again.
+    if ( getRegisteredSource(sourceId) ) await editSource(sourceId, record => record.removed = true);
+    else await setGmSources(getGmSources().filter(r => r.id !== sourceId));
     this.render();
   }
 }
+

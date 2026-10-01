@@ -7,6 +7,7 @@
  */
 
 import { MODULE_ID, SETTINGS, SOCKET_EVENT, SYSTEM_PRESETS, EXPIRY_EVENT } from "./constants.js";
+import { sourceField } from "./helpers.js";
 import { LightSourcesConfig } from "./light-sources-config.js";
 import { CompatibilityConfig } from "./compatibility-config.js";
 import { registerTokenHudHooks } from "./token-hud.js";
@@ -29,11 +30,13 @@ Hooks.once("init", () => {
   // known systems work out of the box; unknown systems start fully unconfigured.
   const preset = SYSTEM_PRESETS[game.system.id] ?? {};
 
-  game.settings.register(MODULE_ID, SETTINGS.SOURCES, {
+  // Only the GM's own records are stored; what modules register lives in memory.
+  // A DataField type makes core clean and strictly validate every write, which
+  // rejects before anything reaches the server.
+  game.settings.register(MODULE_ID, SETTINGS.GM_SOURCES, {
     scope: "world",
     config: false,
-    type: Array,
-    default: []
+    type: new foundry.data.fields.ArrayField(sourceField())
   });
 
   game.settings.register(MODULE_ID, SETTINGS.ITEM_TYPES, {

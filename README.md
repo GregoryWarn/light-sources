@@ -144,7 +144,7 @@ A module that carries items off a sheet and onto the map can take a lit light al
 
 A system that gives items from one character to another — a trade, a drag between sheets — can take the light along the same way: create the copy on the receiver, call `handOverLight(original, copy)`, then remove the original. The light moves across with the time it had left, and nothing is spent. See [the API docs](docs/register-sources-api.md#handoverlightfromitem-toitem).
 
-Registered values are **defaults, not locks**: once the GM edits one of these sources it stops being overwritten, and a **Restore Module Default** control puts it back — either for the whole source, or for a single light pattern. See the [Register Sources API docs](docs/register-sources-api.md#gm-customization-important) for the full contract.
+Registered values are **defaults, not locks**: once the GM edits one of these sources, the GM's version is kept and the module's values no longer apply to it, and a **Restore Module Default** control puts them back — either for the whole source, or for a single light pattern. A source the GM removes stays removed until it is restored. Registered sources are not stored in the world: the module that provides them registers them again each session. See the [Register Sources API docs](docs/register-sources-api.md#gm-customization-important) for the full contract.
 
 ## 🚀 Installation
 

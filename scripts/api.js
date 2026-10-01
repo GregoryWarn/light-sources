@@ -8,16 +8,15 @@
 
 import { MODULE_ID, SETTINGS, FLAGS, DURATION_MODES, CONSUME_MODES, LIGHT_REASONS } from "./constants.js";
 import {
-  getSources, setSources, makePattern, getItemTypes, getActorTypes, getQuantityPath, getChargesPath, getChargesSpentPath
+  getSources, setRegisteredSource, validateSource, getItemTypes, getActorTypes, getQuantityPath, getChargesPath,
+  getChargesSpentPath
 } from "./helpers.js";
 import {
   activateLight, deactivateLight, getActiveLight, dropItemLight, pickupItemLight, moveItemLight
 } from "./light-manager.js";
 
 /**
- * The usage fields a caller supplies, with the API's documented defaults filled
- * in. Also snapshotted onto the source as `moduleDefaults`, so restoring returns
- * what the module wants *now* rather than what it asked for on first registration.
+ * The usage fields a caller supplies, with the API's documented defaults filled in.
  * @param {object} entry The caller's light source definition.
  * @returns {{consume: string, freeForAll: boolean, coverable: boolean, hudHidden: boolean, durationMode: string, durationMinutes: number}} The usage fields.
  */
@@ -33,63 +32,17 @@ function usageFields(entry) {
 }
 
 /**
- * Find the stored pattern an incoming module pattern refers to. Matching is on
- * `moduleName` — the name the module last supplied — and never on `name`, which
- * the GM may rename freely in the editor: matching a renamed pattern by name
- * fails and mints a fresh id, orphaning any ActiveEffect pointing at the old one
- * through its `patternId` flag. A pattern the GM added by hand carries no
- * `moduleName`, so it never matches and is never claimed by a module.
- * @param {object[]} patterns The source's stored patterns.
- * @param {string} moduleName The name the module supplied for the pattern.
- * @returns {object|null} The matching stored pattern, or null when it is new.
- */
-function findModulePattern(patterns, moduleName) {
-  return patterns.find(p => p.moduleName === moduleName) ?? null;
-}
-
-/**
- * Convert a caller-supplied raw pattern ({name, light}) into the module's
- * internal {id, name, light, moduleName, moduleLight} shape, stamping the
- * module's own values as the snapshot a restore reverts to, and reusing a matched
- * pattern's id so live effects referencing it stay valid across an update.
- * @param {{name: string, light: object}} raw The caller's pattern definition.
- * @param {object|null} previous The stored pattern it matched, if any.
- * @returns {object} The internal pattern.
- */
-function toInternalPattern(raw, previous) {
-  const pattern = makePattern(raw.light, raw.name);
-  if ( previous ) pattern.id = previous.id;
-  return Object.assign(pattern, { moduleName: raw.name, moduleLight: foundry.utils.deepClone(raw.light) });
-}
-
-/**
- * Refresh a customized source's snapshots without disturbing what the GM edited:
- * stored patterns keep their live id/name/light and only have their snapshot
- * advanced, while a pattern the module has newly added is appended (the GM can
- * only benefit from seeing it). Nothing is ever dropped here — a pattern the GM
- * added by hand has no snapshot at all and is left strictly alone.
- * @param {object} existing The stored source (mutated in place).
- * @param {object} entry The caller's light source definition.
- */
-function refreshSnapshots(existing, entry) {
-  existing.moduleDefaults = usageFields(entry);
-  for ( const raw of entry.patterns ) {
-    const previous = findModulePattern(existing.patterns, raw.name);
-    if ( previous ) Object.assign(previous, { moduleName: raw.name, moduleLight: foundry.utils.deepClone(raw.light) });
-    else existing.patterns.push(toInternalPattern(raw, null));
-  }
-}
-
-/**
- * Programmatically register or update light source definitions from an
- * external system or module. UUID is used as the primary key: existing
- * sources are updated in-place (preserving their internal id); new ones
- * are appended. A single setSources write is performed per call.
+ * Programmatically register or update light source definitions from an external
+ * system or module. Nothing is written to the database: registered sources live in
+ * memory, so the caller registers them on **every** client, every session (its
+ * `ready` hook does exactly that). Calling again with the same uuid replaces that
+ * source.
  *
- * A source the GM has since edited is frozen (`customized`): its values are left
- * untouched, and only its module-default snapshot is advanced, until the GM
- * explicitly restores it. Callers may therefore re-register the same static
- * entries every session without clobbering the GM's work.
+ * A source's id is its uuid, and a pattern's id is the name it is registered under,
+ * so lights that are burning, or lying on the ground, find their source and pattern
+ * again after the registry is rebuilt. The GM's edits are stored apart, as records
+ * of their own with the same id (see `getSources` in `helpers.js`), so registering
+ * never overwrites them.
  *
  * @param {object[]} entries       Array of light source definitions.
  * @param {object}  [options={}]
@@ -102,8 +55,6 @@ export async function registerSources(entries, { managedBy = null } = {}) {
     return;
   }
 
-  const sources = getSources();
-
   for ( const entry of entries ) {
     if ( !entry?.uuid || !Array.isArray(entry.patterns) ) {
       console.warn(`${MODULE_ID} | Skipping light source entry missing a uuid or patterns array.`, entry);
@@ -114,44 +65,37 @@ export async function registerSources(entries, { managedBy = null } = {}) {
       continue;
     }
 
-    const item = await foundry.utils.fromUuid(entry.uuid);
+    // Synchronous: a compendium entry resolves to its index entry, which every client
+    // holds for every active pack, so this costs no server request per client.
+    let item = null;
+    try {
+      item = foundry.utils.fromUuidSync(entry.uuid);
+    } catch(err) {
+      // A uuid that cannot be parsed is treated like one that does not resolve.
+    }
     if ( !item ) {
       console.warn(`${MODULE_ID} | Could not resolve light source item "${entry.uuid}"; skipping.`);
       continue;
     }
 
-    const existing = sources.find(s => s.uuid === entry.uuid);
-    const usage = usageFields(entry);
-    // Item metadata is not editable through this module, so it always refreshes.
-    const metadata = { name: item.name, img: item.img, type: item.type, managedBy };
+    const names = entry.patterns.map(p => p?.name);
+    if ( new Set(names).size !== names.length ) {
+      console.warn(`${MODULE_ID} | Skipping light source "${entry.uuid}": pattern names are their ids and must be unique.`, entry);
+      continue;
+    }
 
-    if ( existing?.customized ) {
-      Object.assign(existing, metadata);
-      refreshSnapshots(existing, entry);
-    }
-    else if ( existing ) {
-      // Update in place, preserving the internal id (it may be referenced by
-      // active effects currently on actors) and refreshing the item metadata.
-      Object.assign(existing, metadata, usage, {
-        customized: false,
-        moduleDefaults: { ...usage },
-        patterns: entry.patterns.map(raw => toInternalPattern(raw, findModulePattern(existing.patterns, raw.name)))
-      });
-    }
-    else {
-      sources.push({
-        id: foundry.utils.randomID(),
-        uuid: entry.uuid,
-        ...metadata,
-        ...usage,
-        customized: false,
-        moduleDefaults: { ...usage },
-        patterns: entry.patterns.map(raw => toInternalPattern(raw, null))
-      });
-    }
+    const record = validateSource({
+      id: entry.uuid,
+      uuid: entry.uuid,
+      name: item.name,
+      img: item.img,
+      type: item.type,
+      managedBy,
+      ...usageFields(entry),
+      patterns: entry.patterns.map(p => ({ id: p?.name, name: p?.name, light: p?.light }))
+    }, entry.uuid);
+    if ( record ) setRegisteredSource(record);
   }
-
-  await setSources(sources);
 }
 
 /**
@@ -164,7 +108,7 @@ export async function registerSources(entries, { managedBy = null } = {}) {
  * to call every session (e.g. alongside registerSources in the same `ready`
  * hook): a GM who has already configured any of these through the
  * Compatibility config window keeps that choice untouched, even if the
- * caller supplies a different value for it.
+ * caller supplies a different value for it. A no-op on a player's client.
  *
  * @param {object} [options={}]
  * @param {string[]} [options.itemTypes] Item type ids to enable as light sources.
@@ -177,6 +121,8 @@ export async function registerSources(entries, { managedBy = null } = {}) {
  * @returns {Promise<void>}
  */
 export async function registerCompatibility({ itemTypes, actorTypes, quantityPath, chargesPath, chargesSpentPath } = {}) {
+  // Only a GM may write world settings, and the GM's client seeds them for everyone.
+  if ( !game.user.isGM ) return;
   if ( Array.isArray(itemTypes) && !getItemTypes().length ) {
     await game.settings.set(MODULE_ID, SETTINGS.ITEM_TYPES, itemTypes);
   }
@@ -212,14 +158,14 @@ export async function registerCompatibility({ itemTypes, actorTypes, quantityPat
  * Token HUD palette, and this path is not the palette: whatever charged the light
  * has already run, and a caller can only ever reach an actor it already owns.
  * @param {Actor} actor The actor to light. Must be owned by the current user.
- * @param {string} uuid The registered source's `uuid`, or its internal `id` (a source
- *   the GM added by name has no uuid, and is only reachable by id).
+ * @param {string} id The source's id: its uuid when it has one. A source the GM added
+ *   by name has no uuid, and its id is the one `getActive` reports.
  * @param {object} [options={}]
  * @param {string} [options.pattern] Name of the pattern to light. Defaults to the
  *   source's first pattern.
  * @returns {Promise<boolean>} True when the source is now lit.
  */
-export async function activate(actor, uuid, { pattern } = {}) {
+export async function activate(actor, id, { pattern } = {}) {
   if ( !actor ) {
     console.warn(`${MODULE_ID} | activate called without an actor.`);
     return false;
@@ -229,14 +175,14 @@ export async function activate(actor, uuid, { pattern } = {}) {
     return false;
   }
 
-  const source = getSources().find(s => (s.uuid === uuid) || (s.id === uuid));
+  const source = getSources().find(s => s.id === id);
   if ( !source ) {
-    console.warn(`${MODULE_ID} | No light source registered for "${uuid}".`);
+    console.warn(`${MODULE_ID} | No light source registered for "${id}".`);
     return false;
   }
 
   // Patterns are selected by name because that is what a caller registered them
-  // under; internal ids are minted by this module and never travel outward.
+  // under; a pattern the GM added by hand has an id only this module knows.
   const target = pattern ? source.patterns.find(p => p.name === pattern) : source.patterns[0];
   if ( !target ) {
     console.warn(`${MODULE_ID} | Light source "${source.name}" has no pattern named "${pattern}".`);

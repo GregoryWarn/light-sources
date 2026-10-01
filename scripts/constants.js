@@ -14,7 +14,10 @@ export const MODULE_ID = "light-sources";
 
 /**
  * Setting keys registered under the MODULE_ID scope.
- * - `SOURCES`: the registered light-source definitions (world data).
+ * - `GM_SOURCES`: the GM's own light-source records (world data): sources the GM
+ *   made, full replacements for a source a module registers (same `id`), and
+ *   tombstones (`removed: true`) hiding one. What modules register is never stored
+ *   here; it lives in memory on every client (see `getSources` in `helpers.js`).
  * - `MENU`: the light-sources configuration menu.
  * - `COMPAT_MENU`: the system-compatibility configuration menu.
  * - `ITEM_TYPES` / `ACTOR_TYPES`: which of the detected system's document
@@ -31,10 +34,10 @@ export const MODULE_ID = "light-sources";
  *   `getRestrictPlayerControl` in `helpers.js`).
  * - `ANNOUNCE_LIT`: whether lighting a source posts a chat message (see
  *   `getAnnounceLit` in `helpers.js`).
- * @type {{SOURCES: string, MENU: string, COMPAT_MENU: string, ITEM_TYPES: string, ACTOR_TYPES: string, QUANTITY_PATH: string, CHARGES_PATH: string, CHARGES_SPENT_PATH: string, ALLOW_FREE_FOR_ALL_DROP: string, RESTRICT_PLAYER_CONTROL: string, ANNOUNCE_LIT: string}}
+ * @type {{GM_SOURCES: string, MENU: string, COMPAT_MENU: string, ITEM_TYPES: string, ACTOR_TYPES: string, QUANTITY_PATH: string, CHARGES_PATH: string, CHARGES_SPENT_PATH: string, ALLOW_FREE_FOR_ALL_DROP: string, RESTRICT_PLAYER_CONTROL: string, ANNOUNCE_LIT: string}}
  */
 export const SETTINGS = {
-  SOURCES: "sources",
+  GM_SOURCES: "gmSources",
   MENU: "config",
   COMPAT_MENU: "compatibility",
   ITEM_TYPES: "itemTypes",

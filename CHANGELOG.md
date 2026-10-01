@@ -1,3 +1,17 @@
+# Unreleased
+
+### Changed
+
+* **Light sources registered by other modules are no longer stored in the world.** Each module registers its sources again every session, on every client, and only the GM's own sources and the GM's edits are saved. A module that is disabled takes its sources with it, unless the GM edited them. Modules using the API must call `registerSources` on every client, not only the GM's. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#gm-customization-important).
+* **A source's id is its item's UUID.** `activate` takes that id, and `getActive` reports it as `sourceId`. A pattern's id is the name its module registered it under.
+* **Light sources configured before this version are not kept.** The module now stores them in a new setting, so a world updated from 0.3.0 starts with no sources of its own and has to set them up again. Lights burning during the update can still be put out and still burn out, but they can no longer be dropped, picked up or handed over.
+
+### Fixed
+
+* **A light source the GM removes stays removed.** Removing a source registered by another module used to last only until the next session, when the module registered it again. It is now listed under **Removed module light sources**, where Restore brings it back.
+* **`registerCompatibility` no longer tries to write world settings from a player's client**, which only a GM may do.
+
+
 # 0.3.0
 
 ### Added

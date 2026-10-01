@@ -57,7 +57,9 @@
       "Coverable": "Può essere coperta",
       "ManagedByTooltip": "Registrata da un sistema o modulo esterno: {name}",
       "NameOnlyBadge": "Nessun oggetto",
-      "NameOnlyTooltip": "Registrata solo per nome — nessun oggetto collegato."
+      "NameOnlyTooltip": "Registrata solo per nome — nessun oggetto collegato.",
+      "RemovedHeading": "Fonti di luce dei moduli rimosse",
+      "RestoreRemovedTooltip": "Ripristina questa fonte di luce, con i valori registrati dal suo modulo."
     },
     "Patterns": {
       "Standard": "Standard",

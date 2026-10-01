@@ -4,6 +4,8 @@ The **Light Sources** module exposes a public API that lets other Foundry VTT mo
 
 Registered sources appear in the Token HUD alongside manually configured ones, and in the GM's Light Sources configuration window with a badge indicating which module manages them.
 
+Registered sources are **not stored in the world**. They live in memory on each client, so your module registers them on **every** client, every session — the `ready` hook in the [Full Example](#full-example) does exactly that. Only the GM's own sources and the GM's edits to yours are stored.
+
 ---
 
 ## Accessing the API
@@ -66,7 +68,7 @@ Register or update one or more light source definitions. Existing sources (match
 
 ### Returns
 
-`Promise<void>` — resolves once the definitions are persisted.
+`Promise<void>` — resolves once the definitions are registered on this client. Nothing is written to the database, so any user may call it.
 
 ---
 
@@ -89,7 +91,7 @@ This matters most for `freeForAll` sources: they only appear in the Token HUD fo
 
 ### Returns
 
-`Promise<void>` — resolves once any seeded settings are persisted.
+`Promise<void>` — resolves once any seeded settings are persisted. On a player's client it does nothing: only a GM may write world settings, and the GM's client seeds them for everyone.
 
 ### Behavior
 
@@ -137,9 +139,9 @@ Each object in the `entries` array describes a single light source:
 ### Key Fields
 
 #### `uuid`
-The **primary key** for deduplication. Must be a valid Foundry UUID that resolves to an Item document (compendium or world). If the UUID cannot be resolved, the entry is skipped with a console warning.
+The **primary key**, and the source's id: `activate`, `getActive` and the GM's edits all refer to the source by it. Must be a valid Foundry UUID that resolves to an Item (compendium or world). If the UUID cannot be resolved, the entry is skipped with a console warning.
 
-The item's `name`, `img`, and `type` are read from the resolved document automatically — you never need to supply them.
+The item's `name`, `img`, and `type` are read automatically — you never need to supply them. A compendium entry is read from the pack's index, so this costs no server request and works on a player's client even for a pack hidden from players.
 
 #### `patterns`
 A source can have **multiple light patterns** — different ways the same item emits light. For example, a lantern might have a "Low" pattern (dim, warm glow) and a "High" pattern (bright, wide radius). Each pattern appears as a separate entry in the Token HUD. If a source has only one pattern, no sub-label is shown.
@@ -203,7 +205,7 @@ This pairs with `consume: "none"` in most cases — the module is not charging a
 
 ---
 
-## `activate(actor, uuid, options?)`
+## `activate(actor, id, options?)`
 
 Lights a registered source on an actor, exactly as clicking it in the Token HUD would: same consumption, same duration, same chat announcement, and the same one-light-per-actor rule.
 
@@ -215,7 +217,7 @@ const lit = await game.lightSources.activate(actor, sourceUuid, { pattern: "Narr
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `actor` | `Actor` | The actor to light. **Must be owned by the current user.** |
-| `uuid` | `string` | The registered source's `uuid`, or its internal `id`. A source the GM added by name has no uuid and is reachable only by id. |
+| `id` | `string` | The source's id: its `uuid` for any source with an Item, and for a source the GM added by name, the id `getActive` reports. |
 | `options.pattern` | `string` | Name of the pattern to light. Defaults to the source's first pattern. |
 
 Returns `Promise<boolean>` — `true` when the source is now lit, `false` when it was refused. It is refused when no source is registered for that key, when the named pattern does not exist, when the current user does not own the actor, or when a `consume: "copy"` or `"charge"` source's item is no longer carried or has nothing left to spend. It is also refused while the light of every matching item, dropped from the Token HUD, lies on the ground (see [Dropping](#dropping)), and when the game system or another module refuses the light's effect on the actor. Nothing is spent and nothing is announced then, and the user sees a warning. PF2e refuses every effect a module adds to an actor, so no light can be lit there.
@@ -249,7 +251,7 @@ const light = game.lightSources.getActive(actor);
 // → null, or { sourceId, patternId, patternName, itemName, itemId, mode, expiresAtWorld, expiresAtReal, stowed }
 ```
 
-Returns the active light payload, or `null` when the actor has no light lit. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
+Returns the active light payload, or `null` when the actor has no light lit. `sourceId` is the source's id — its `uuid` when it has one — and `patternId` the pattern's, which for a registered pattern is the name it was registered under. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
 
 `itemId` is the id of the carried Item that is burning. Every source has one except two: a `"copy"` source turned one of its items into the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out, unless whatever moved it took the light along with [`dropLightWithItem`](#droplightwithitemitem-where) or [`handOverLight`](#handoverlightfromitem-toitem).
 
@@ -376,37 +378,36 @@ The world setting **Announce Lights in Chat** turns off the "lit" card. The othe
 
 ## Deduplication and Updates
 
-- **New source**: If no registered source shares the same UUID, the item is resolved via `fromUuid`, and a new entry is appended.
-- **Existing source**: If a source with the same UUID already exists, it is **updated in-place**. Its internal `id` is preserved so that any active effects currently on actors remain valid.
-- **Pattern matching**: When updating, patterns are matched by the name **you last supplied** for them, not by their current display name — so a pattern the GM has renamed still matches, and keeps its internal `id`. A name you have never registered before generates a new pattern.
-- **Unresolvable UUID**: Logged as `console.warn` and skipped silently.
-
-All updates from a single `registerSources` call are batched into **one write** to the settings database.
+- **Same UUID, same source**: Registering a UUID that is already registered on this client replaces that source.
+- **Pattern ids are their names**: A pattern's id is the `name` you register it under, so names must be unique within an entry; an entry with two patterns of the same name is skipped with a console warning. A lit light records that id, which is why renaming a pattern in your module makes it a new pattern: a light lit from the old name can no longer be dropped or picked up.
+- **Unresolvable UUID**: Logged as `console.warn` and skipped.
+- **Removed from your list**: A source you stop registering is gone from the next session on, unless the GM has edited it (see below).
 
 ---
 
 ## GM Customization (important)
 
-The values you pass are **defaults, not enforced settings**. The GM can edit any registered source in the module's configuration window, and the module protects that work — automatically, for every source registered through this API:
+The values you pass are **defaults, not enforced settings**. The GM can edit any registered source in the module's configuration window:
 
-- As soon as the GM saves an edit to one of your sources, that source is **frozen**. Your subsequent `registerSources` calls will no longer overwrite its patterns, consumption, duration, free-for-all or coverable flags.
-- Your calls are still not wasted on a frozen source. The module keeps a **snapshot of the latest values you registered**, so:
-  - A pattern you have **added** since the GM's edit is still appended to the source — the GM sees your new patterns without losing their own changes.
-  - When the GM clicks **Restore Module Default**, the source reverts to the values from your **most recent** call, not to whatever you registered the first time. Shipping new defaults in a module update is therefore always worthwhile, even for sources a GM has already customized.
-- Restoring also **unfreezes** the source, so it resumes updating automatically from your next call onward.
-- Patterns the GM added by hand have no snapshot of yours behind them. They are never overwritten, and never removed by a restore.
+- When the GM saves an edit to one of your sources, the module stores the GM's own copy of it under the same UUID. That copy **replaces your values** from then on. Your `registerSources` calls never overwrite it.
+- Your calls still count for an edited source:
+  - A pattern you **add** after the GM's edit still shows up, appended after the GM's patterns. A pattern of yours the GM **deleted** stays deleted.
+  - The source's `name`, `img` and `type` always follow the Item.
+- **Restore Module Default** deletes the GM's copy, so your current values apply again. The light editor can also restore a single pattern to what you register for it.
+- When the GM **removes** one of your sources, the removal is stored too, so the source stays gone even though you register it again every session. It is listed under **Removed module light sources**, where Restore brings it back.
+- If your module is later disabled, an edited source stays available, because the GM's copy is complete by itself. An unedited one disappears with your module.
 
-Practical consequence: **do not** rely on `registerSources` to force a source back to a known state — a GM edit intentionally wins over your payload. If your module needs to react to the GM's values, read the stored sources rather than assuming your own payload is live.
+Practical consequence: **do not** rely on `registerSources` to force a source back to a known state — a GM edit intentionally wins over your payload.
 
 ---
 
 ## The `managedBy` Badge
 
-When `options.managedBy` is set, every source created or updated by that call is stamped with the value. In the GM's **Configure Light Sources** window, these sources display a read-only badge indicating external management.
+When `options.managedBy` is set, every source registered by that call is stamped with the value. In the GM's **Configure Light Sources** window, these sources display a read-only badge indicating external management.
 
-Sources with a `managedBy` stamp **can still be manually deleted** by the GM — the badge is informational, not a hard lock.
+The GM can still remove a source with the badge, and the removal sticks across sessions until the GM restores it.
 
-`managedBy` is **purely cosmetic**, and stays optional. It does not affect [GM customization](#gm-customization-important): every source registered through this API is protected and restorable whether or not you pass it. Do pass it anyway — it is the only thing telling a GM which module a source came from.
+`managedBy` is **purely cosmetic**, and stays optional. It does not affect [GM customization](#gm-customization-important). Do pass it anyway — it is the only thing telling a GM which module a source came from.
 
 ---
 
@@ -546,9 +547,8 @@ In this example:
 ## Tips
 
 - **Call it in `ready`**: The API is assigned in the `ready` hook. Settings and compendium indices are available at that point, so UUIDs can be resolved.
-- **Idempotent**: You can call `registerSources` multiple times with the same entries safely — existing sources are updated, not duplicated, and a source the GM has customized is never clobbered (see [GM Customization](#gm-customization-important)).
-- **Re-register every session**: The intended pattern is to pass your full, static entry list on every `ready`. That keeps sources in sync with your module's current defaults without ever overwriting the GM's edits.
-- **One write per call**: All entries are batched into a single database write. Pass all your sources in one array rather than making separate calls.
+- **Idempotent**: You can call `registerSources` multiple times with the same entries safely — a source registered again is replaced, not duplicated, and a source the GM has edited is never clobbered (see [GM Customization](#gm-customization-important)).
+- **Register on every client, every session**: Pass your full, static entry list on every `ready`, on every client — the GM's and each player's. Sources are not stored, so a client that never registers them never shows them in its Token HUD. Do not guard the call with `game.user.isGM`.
 - **System presets**: If your system already has built-in presets in the module (like Daggerheart), the API lets you replace or extend them programmatically.
 - **Seed compatibility before sources**: Call `registerCompatibility` before `registerSources` in the same `ready` hook, especially if you register any `freeForAll` source — otherwise it may silently show for no one until the GM opens the Compatibility window (see [`registerCompatibility`](#registercompatibilityoptions)).
 

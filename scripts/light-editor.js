@@ -7,7 +7,7 @@
  */
 
 import { MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DURATION_MODES, CONSUME_MODES, RANGE_PRESETS, DURATION_PRESETS } from "./constants.js";
-import { getSources, setSources, makePattern } from "./helpers.js";
+import { getSources, getRegisteredSource, editSource, makePattern } from "./helpers.js";
 import { buildLightData } from "./light-manager.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -49,7 +49,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
    * Working copy of the pattern list, used to carry unsaved edits across the
    * re-renders triggered by adding, removing or restoring a pattern (the rendered
    * form is otherwise the single source of truth). Null until the first such edit.
-   * @type {Array<{id: string, name: string, light: object, moduleName: (string|undefined), moduleLight: (object|undefined)}>|null}
+   * @type {Array<{id: string, name: string, light: object}>|null}
    */
   #draftPatterns = null;
 
@@ -256,8 +256,8 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
    * Read every pattern from the current form state, sanitized into the stored
    * pattern shape. The form is the source of truth for unsaved edits, so this
    * backs both the live preview and the add/remove/restore pattern actions.
-   * @returns {Array<{id: string, name: string, light: object, moduleName: (string|undefined), moduleLight: (object|undefined)}>}
-   *   The patterns (see `#patternsFromData`).
+   * @returns {Array<{id: string, name: string, light: object}>} The patterns (see
+   *   `#patternsFromData`).
    */
   #readFormPatterns() {
     const formData = new foundry.applications.ux.FormDataExtended(this.form);
@@ -269,34 +269,22 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
    * turns the indexed `patterns.<i>.*` field names into an object keyed by index
    * (not a true array), so entries are re-sorted by their numeric index.
    * @param {object} data Expanded form data (see foundry.utils.expandObject).
-   * @returns {Array<{id: string, name: string, light: object, moduleName: (string|undefined), moduleLight: (object|undefined)}>}
-   *   The patterns, each carrying its module default snapshot when it has one.
+   * @returns {Array<{id: string, name: string, light: object}>} The patterns.
    */
   #patternsFromData(data) {
-    const stored = this.source?.patterns ?? [];
     const raw = data.patterns ?? {};
     const entries = Array.isArray(raw)
       ? raw.map((value, index) => [index, value])
       : Object.entries(raw);
     return entries
       .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([, p]) => {
-        const pattern = {
-          id: p.id || foundry.utils.randomID(),
-          name: (p.name ?? "").trim(),
-          light: this.#buildLightPatch(p)
-        };
-        // A registered pattern's module snapshot has no form field of its own, so
-        // it has to be carried across explicitly or a plain save would strip it
-        // and silently break "restore to module default". Matched on id, never on
-        // name: renaming a pattern is exactly what the form may have just done.
-        const previous = stored.find(sp => sp.id === pattern.id);
-        if ( previous?.moduleLight ) Object.assign(pattern, {
-          moduleName: previous.moduleName,
-          moduleLight: previous.moduleLight
-        });
-        return pattern;
-      });
+      // The id travels in a hidden field, so a renamed pattern keeps it: a registered
+      // pattern's id is the name its module gave it, whatever the GM calls it now.
+      .map(([, p]) => ({
+        id: p.id || foundry.utils.randomID(),
+        name: (p.name ?? "").trim(),
+        light: this.#buildLightPatch(p)
+      }));
   }
 
   /**
@@ -345,6 +333,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     const source = this.source
       ?? { patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))], consume: CONSUME_MODES.NONE, coverable: false, durationMode: DURATION_MODES.WORLD, durationMinutes: 0 };
     const patterns = this.#draftPatterns ?? source.patterns;
+    const registered = getRegisteredSource(this.options.sourceId);
     context.source = source;
     context.tabs = this._prepareTabs("primary");
     // A source must keep at least one pattern; hide the remove control otherwise.
@@ -357,9 +346,9 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       // precomputed here rather than derived in the template.
       number: index + 1,
       light: pattern.light,
-      // Only a pattern a module registered has a default to fall back to; one the
-      // GM added by hand carries no snapshot.
-      canRestore: !!pattern.moduleLight,
+      // Only a pattern a module registers has a default to fall back to; one the GM
+      // added by hand has none.
+      canRestore: !!registered?.patterns.some(p => p.id === pattern.id),
       dimPresets: this.#buildPresetOptions(pattern.light.dim, RANGE_PRESETS),
       brightPresets: this.#buildPresetOptions(pattern.light.bright, RANGE_PRESETS),
       animationTypes: this.#buildAnimationOptions(pattern.light.animation?.type, pattern.light.negative)
@@ -463,9 +452,10 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     const index = Number(target.closest("[data-pattern-index]")?.dataset.patternIndex);
     const patterns = this.#readFormPatterns();
     const pattern = patterns[index];
-    if ( !pattern?.moduleLight ) return;
-    pattern.name = pattern.moduleName;
-    pattern.light = foundry.utils.deepClone(pattern.moduleLight);
+    const original = getRegisteredSource(this.options.sourceId)?.patterns.find(p => p.id === pattern?.id);
+    if ( !original ) return;
+    pattern.name = original.name;
+    pattern.light = original.light;
     this.#draftPatterns = patterns;
     this.#activePatternIndex = index;
     await this.render();
@@ -485,23 +475,23 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
    */
   static async _onFormSubmit(event, form, formData) {
     const data = foundry.utils.expandObject(formData.object);
-    const sources = getSources();
-    const source = sources.find(s => s.id === this.options.sourceId);
-    if ( !source ) return;
+    const patterns = this.#patternsFromData(data);
+    const registered = getRegisteredSource(this.options.sourceId);
 
-    source.consume = Object.values(CONSUME_MODES).includes(data.consume) ? data.consume : CONSUME_MODES.NONE;
-    source.coverable = !!data.coverable;
-    source.durationMode = data.durationMode === DURATION_MODES.REAL ? DURATION_MODES.REAL : DURATION_MODES.WORLD;
-    source.durationMinutes = Math.max(0, Math.round(Number(data.durationMinutes) || 0));
-    source.patterns = this.#patternsFromData(data);
-    // Freeze the source so the next registerSources call stops overwriting these
-    // values; only an explicit restore (see `_onRestoreDefault` in
-    // light-sources-config.js) hands control back to the module. Keyed on the
-    // snapshot, not on `managedBy`: the latter is an optional cosmetic stamp, so
-    // a module that omits it must still not lose the GM's work.
-    if ( source.moduleDefaults ) source.customized = true;
-
-    await setSources(sources);
+    // Saving a source a module registers stores the GM's own copy, which replaces the
+    // registered values until it is restored (see `_onRestoreDefault` in
+    // light-sources-config.js).
+    await editSource(this.options.sourceId, source => {
+      source.consume = Object.values(CONSUME_MODES).includes(data.consume) ? data.consume : CONSUME_MODES.NONE;
+      source.coverable = !!data.coverable;
+      source.durationMode = data.durationMode === DURATION_MODES.REAL ? DURATION_MODES.REAL : DURATION_MODES.WORLD;
+      source.durationMinutes = Math.max(0, Math.round(Number(data.durationMinutes) || 0));
+      source.patterns = patterns;
+      // A registered pattern the GM deleted must stay deleted, rather than come back
+      // as one the module added since.
+      const kept = new Set(patterns.map(p => p.id));
+      source.removedPatterns = (registered?.patterns ?? []).map(p => p.id).filter(id => !kept.has(id));
+    });
     this.options.configApp?.render();
   }
 }

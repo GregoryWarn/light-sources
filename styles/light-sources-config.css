@@ -196,4 +196,26 @@
     font-style: italic;
     color: var(--color-text-secondary);
   }
+
+  .ls-removed-heading {
+    margin: 0.75rem 0 0;
+    border: none;
+    font-size: var(--font-size-13, 0.8125rem);
+    color: var(--color-text-secondary);
+  }
+
+  .ls-removed-list {
+    list-style: none;
+    margin: 0.375rem 0 0;
+    padding: 0 0.125rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  /* Muted: these sources are not in effect, and Restore is all that can be done. */
+  .ls-removed .ls-icon,
+  .ls-removed .ls-name {
+    opacity: 0.5;
+  }
 }
