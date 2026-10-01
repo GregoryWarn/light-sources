@@ -1,3 +1,10 @@
+# Unreleased
+
+### Added
+
+* **A light source can be kept from being dropped** (#14). A new **Can Be Dropped** switch on the Consumption tab of the light editor, on by default. Turned off, the Token HUD no longer offers **Drop** for that source, for a light built into what the character wears, such as glowing armor or a lamp fixed to a helmet. The light still leaves together with its item when a module carries the item off through `dropLightWithItem` or `handOverLight`. `registerSources` accepts it as `droppable`. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#droppable).
+
+
 # 0.5.0
 
 ### Changed

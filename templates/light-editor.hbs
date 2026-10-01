@@ -146,6 +146,13 @@
     <p class="hint">{{localize "LIGHTSOURCES.LightEditor.Fields.CoverableHint"}}</p>
   </div>
   <div class="form-group">
+    <label>{{localize "LIGHTSOURCES.LightEditor.Fields.Droppable"}}</label>
+    <div class="form-fields">
+      <input type="checkbox" name="droppable" {{checked source.droppable}}>
+    </div>
+    <p class="hint">{{localize "LIGHTSOURCES.LightEditor.Fields.DroppableHint"}}</p>
+  </div>
+  <div class="form-group">
     <label>{{localize "LIGHTSOURCES.LightEditor.Fields.Duration"}}</label>
     <div class="form-fields ls-value-field">
       <input type="number" name="durationMinutes" value="{{source.durationMinutes}}" min="0" step="1">

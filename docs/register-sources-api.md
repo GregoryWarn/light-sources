@@ -131,6 +131,7 @@ Each object in the `entries` array describes a single light source:
   consume: string,           // Optional – what lighting spends: "none", "copy" or "charge" (default: "none")
   freeForAll: boolean,       // Optional – any actor of an Actor-Types-enabled type can light this, no inventory item needed (default: false)
   coverable: boolean,        // Optional – the light can be covered instead of ended, keeping its remaining duration (default: false)
+  droppable: boolean,        // Optional – the Token HUD offers Drop while the light burns (default: true)
   hudHidden: boolean,        // Optional – never offered in the Token HUD; lit only through activate() (default: false)
   durationMode: string,      // Optional – "world" (in-game clock) or "real" (wall clock) (default: "world")
   durationMinutes: number    // Optional – minutes until the light burns out; 0 = unlimited (default: 0)
@@ -189,7 +190,12 @@ Any lit light can be dropped on the ground as an AmbientLight from the Token HUD
 
 A dropped light keeps the schedule it had on the token. It burns out on its own when its time is up, announced in chat, and a token standing on it or on a square beside it can pick it back up from the Token HUD. The flame returns with only the time it has left, and nothing is spent. While a light dropped from the Token HUD lies on the ground, the item it burned on cannot be lit again (a `"copy"` source is not affected). When the same actor picks it back up, it relights on that same item. Lights placed by another module through [`dropLightWithItem`](#droplightwithitemitem-where) are handed back by that module instead, not from the Token HUD.
 
-`freeForAll` sources are droppable too, but because nothing backs them they could be lit and dropped without limit. The GM world setting **Allow Dropping Free for All Lights** (on by default) gates that; it does not affect item-based sources, which are always droppable while lit. There is no per-source way to opt out of dropping — do not register a source expecting drop to remove it from inventory.
+`freeForAll` sources are droppable too, but because nothing backs them they could be lit and dropped without limit. The GM world setting **Allow Dropping Free for All Lights** (on by default) gates that; it does not affect item-based sources. Dropping never removes anything from inventory — do not register a source expecting it to.
+
+#### `droppable`
+When `false`, the Token HUD never offers **Drop** for this source: the light stays on the token until it is extinguished, burns out, or its Item leaves the actor. Meant for a light built into what the actor wears — glowing armor, a lamp fixed to a helmet — whose light has no business lying on the floor without it. Defaults to `true`; for a `freeForAll` source, the world setting above must also allow dropping.
+
+It governs the Token HUD only. [`dropLightWithItem`](#droplightwithitemitem-where) and [`handOverLight`](#handoverlightfromitem-toitem) still move such a light, because there it leaves *together with* its Item, which is exactly how a built-in light should travel. Like the other usage fields it freezes once the GM edits the source.
 
 #### `durationMode`
 Controls how the countdown timer works:

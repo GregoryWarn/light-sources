@@ -63,6 +63,7 @@ export function sourceField() {
     consume: new f.StringField({ required: true, choices: Object.values(CONSUME_MODES), initial: CONSUME_MODES.NONE }),
     freeForAll: new f.BooleanField(),
     coverable: new f.BooleanField(),
+    droppable: new f.BooleanField({ initial: true }),
     hudHidden: new f.BooleanField(),
     durationMode: new f.StringField({ required: true, choices: Object.values(DURATION_MODES), initial: DURATION_MODES.WORLD }),
     durationMinutes: new f.NumberField({ required: true, nullable: false, integer: true, min: 0, initial: 0 }),

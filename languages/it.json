@@ -18,7 +18,7 @@
       },
       "AllowFreeForAllDrop": {
         "Name": "Consenti di lasciare a terra le fonti gratuite",
-        "Hint": "Consente di lasciare a terra una fonte di luce \"gratuita\" accesa. Queste fonti non sono associate ad alcun oggetto, quindi lasciarne una a terra non ha alcun costo e l'operazione può essere ripetuta senza limiti. Disabilita questa opzione per mantenere le fonti gratuite esclusivamente sui token. Le fonti di luce provenienti da un oggetto trasportato possono sempre essere lasciate a terra."
+        "Hint": "Consente di lasciare a terra una fonte di luce \"gratuita\" accesa. Queste fonti non sono associate ad alcun oggetto, quindi lasciarne una a terra non ha alcun costo e l'operazione può essere ripetuta senza limiti. Disabilita questa opzione per mantenere le fonti gratuite esclusivamente sui token. Una fonte con Può essere lasciata a terra disabilitato non può mai essere lasciata a terra, qualunque sia questa impostazione."
       },
       "RestrictPlayerControl": {
         "Name": "Limita il controllo delle luci al GM",
@@ -60,6 +60,7 @@
       "ConsumeCharge": "Consuma una carica",
       "FreeForAll": "Gratuita",
       "Coverable": "Può essere coperta",
+      "Undroppable": "Non può essere lasciata a terra",
       "ManagedByTooltip": "Registrata da un sistema o modulo esterno: {name}",
       "NameOnlyBadge": "Nessun oggetto",
       "NameOnlyTooltip": "Registrata solo per nome — nessun oggetto collegato.",
@@ -145,6 +146,8 @@
         "ConsumeHint": "Cosa toglie all'oggetto l'accensione di questa fonte. Niente: l'oggetto è la luce, come una lanterna o una lama luminosa. Una copia: l'oggetto è una pila di luci identiche, come cinque torce; una copia diventa la fiamma e non appartiene più alla pila. Una carica: l'oggetto è un unico oggetto con utilizzi, come una torcia che si può accendere tre volte o una bacchetta con cariche; la luce arde su quell'oggetto, si spegne quando l'oggetto lascia l'attore e lo segue quando un altro modulo porta l'oggetto sulla mappa. Solo l'accensione consuma: cambiare schema, lasciare a terra e raccogliere non consumano mai.",
         "Coverable": "Può essere coperta",
         "CoverableHint": "Aggiunge un comando Riponi accanto a Lascia a terra nell'HUD del token, coprendo la fonte di luce invece di terminarla: smette di illuminare ma continua a consumarsi e può essere scoperta in seguito con il tempo rimanente. È pensato per una luce che rappresenta un incantesimo su un oggetto anziché una fiamma — un trucchetto Luce lanciato su un sassolino viene riposto in tasca, non spento. Disabilita questa opzione per torce e lanterne.",
+        "Droppable": "Può essere lasciata a terra",
+        "DroppableHint": "Mostra il comando Lascia a terra nell'HUD del token mentre la luce è accesa, posandola a terra come luce ambientale. Disabilita questa opzione per una luce integrata in ciò che il personaggio indossa, come un'armatura luminosa o una lampada fissata a un elmo: resta sul token e se ne va solo insieme al suo oggetto quando un altro modulo lo porta via. Le fonti gratuite richiedono anche l'impostazione Consenti di lasciare a terra le fonti gratuite.",
         "Duration": "Durata (minuti)",
         "DurationHint": "Minuti prima che la luce si spenga automaticamente (conteggiati secondo la modalità scelta qui sotto). Usa 0 per una luce illimitata che si spegne solo quando viene spenta manualmente.",
         "DurationPreset": "Durata preimpostata",

@@ -209,14 +209,16 @@ function buildPalette(hud, actor, entries, active, ground) {
       });
 
       // Dropping relocates the light already burning on the token, so it is only
-      // offered on the lit row. Free-for-all lights cost nothing to drop (no item
-      // backs them), so a GM setting gates whether they can be dropped at all.
+      // offered on the lit row, and never for a source marked not droppable — a light
+      // built into what the actor wears leaves only together with its Item (see
+      // `dropItemLight`). Free-for-all lights cost nothing to drop (no item backs
+      // them), so a GM setting also gates whether they can be dropped at all.
       // The drop control is a *sibling* of the entry button, not a child: a native
       // <button> swallows pointer events from nested interactive elements, so a
       // nested drop button/span never receives its own clicks. The cover control
       // follows the same rule, and sits after drop so drop stays where it has
       // always been for anyone used to reaching for it.
-      const droppable = isActive && (!source.freeForAll || getAllowFreeForAllDrop());
+      const droppable = isActive && source.droppable && (!source.freeForAll || getAllowFreeForAllDrop());
       const drop = droppable ? buildDropButton(hud, actor, source, pattern) : null;
       const stow = (isActive && source.coverable) ? buildStowButton(hud, actor, active) : null;
       if ( drop || stow ) {

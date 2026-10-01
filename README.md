@@ -61,6 +61,7 @@ And then the table stops. The GM alt-tabs to the token settings, types a dim rad
      ![Configuring consumption](docs/consumption.webp)
 
    * **Can Be Covered** — on the same tab: whether this light can be stowed instead of extinguished (see below). Off by default.
+   * **Can Be Dropped** — also on that tab: whether the Token HUD offers **Drop** while this light burns. On by default. Turn it off for a light built into what the character wears, such as glowing armor or a lamp fixed to a helmet: it stays on the token, and still leaves together with its item when a module carries that item off.
 
 Optional per-source toggles on the config window:
 * **Free for All** — when enabled, every actor of an enabled Actor Type can light this source without carrying the item.
@@ -68,7 +69,7 @@ Optional per-source toggles on the config window:
 * **Send to Chat** — posts a draggable item card that can be dropped onto actor sheets.
 
 There are also a few world settings under **Game Settings → Configure Settings → Light Sources**:
-* **Allow Dropping Free for All Lights** (on by default) — whether a lit Free-for-All light can be dropped on the ground. No item backs these sources, so dropping one costs nothing and can be repeated without limit; turn this off if you'd rather free lights stayed on tokens. Lights that come from a carried item are always droppable.
+* **Allow Dropping Free for All Lights** (on by default) — whether a lit Free-for-All light can be dropped on the ground. No item backs these sources, so dropping one costs nothing and can be repeated without limit; turn this off if you'd rather free lights stayed on tokens. A source whose **Can Be Dropped** is off is never droppable, whatever this setting says.
 * **Restrict Light Control to the GM** (off by default) — when enabled, only the GM can activate, extinguish, drop or pick up a light source from the Token HUD. Players still see the flame menu and what's currently lit, but their clicks on those controls are refused.
 * **Announce Lights in Chat** (on by default) — turn off to stop lighting a source from posting the "lights it" chat card. Dropping, picking up and burning out keep announcing regardless.
 
