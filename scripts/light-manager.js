@@ -8,7 +8,7 @@
 
 import {
   MODULE_ID, FLAGS, SOCKET_EVENT, DURATION_MODES, CONSUME_MODES, LIGHT_CHANGE_PRIORITY, EXPIRY_CHECK_INTERVAL_MS, EXPIRY_EVENT,
-  LIGHT_REASONS
+  LIGHT_REASONS, ADVANCED_LIGHT_KEYS
 } from "./constants.js";
 import {
   findMatchingItems, buildLightMessage, getItemRemaining, getQuantityPath, getChargesPath, getChargesSpentPath, getSources,
@@ -56,16 +56,19 @@ export function getActiveLight(actor) {
 }
 
 /**
- * Build the token light data for a light pattern. Only basic + animation fields
- * are set; advanced light options on the token are deliberately left untouched.
+ * Build the light data for a light pattern: basic + animation fields, plus the
+ * advanced options flattened in only when the pattern sets them. Without them the
+ * result carries no advanced key at all, so a dropped light gets core's defaults and
+ * the editor's preview leaves the token's own values in place.
  * Used by the light editor's live preview, which writes directly to a token's
- * light source without persisting.
+ * light source without persisting, and as a dropped light's AmbientLight config.
  * @param {object} pattern A light pattern ({id, name, light}), or any object
  *   exposing a `light` configuration.
  * @returns {object} Plain light data suitable for a Token light source.
  */
 export function buildLightData(pattern) {
-  const light = foundry.utils.deepClone(pattern.light);
+  const { advanced, ...light } = foundry.utils.deepClone(pattern.light);
+  if ( advanced ) Object.assign(light, advanced);
   light.color = light.color || null;
   light.animation = {
     type: light.animation?.type || null,
@@ -81,8 +84,8 @@ export function buildLightData(pattern) {
  * light pattern. One entry per basic/animation field, each an `override`
  * targeting a native v14 `token.light.*` key (core strips the `token.` prefix and
  * applies it to the TokenDocument — a core feature, independent of any game
- * system). Only these keys are touched, so advanced light options (luminosity,
- * attenuation, coloration, shadows, darkness) remain at the token's own base value.
+ * system). The advanced options get entries only when the pattern sets them;
+ * otherwise they remain at the token's own base value.
  * @param {object} pattern A light pattern ({id, name, light}) of a source.
  * @returns {object[]} The change entries for `ActiveEffect#system#changes`.
  */
@@ -106,7 +109,8 @@ function buildLightChanges(pattern) {
     entry("token.light.animation.type", anim.type || ""),
     entry("token.light.animation.speed", Number(anim.speed) || 5),
     entry("token.light.animation.intensity", Number(anim.intensity) || 5),
-    entry("token.light.animation.reverse", !!anim.reverse)
+    entry("token.light.animation.reverse", !!anim.reverse),
+    ...(light.advanced ? ADVANCED_LIGHT_KEYS.map(key => entry(`token.light.${key}`, light.advanced[key])) : [])
   ];
 }
 

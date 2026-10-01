@@ -137,6 +137,9 @@
         "Speed": "Velocità dell'animazione",
         "Intensity": "Intensità dell'animazione",
         "Reverse": "Inverti direzione",
+        "Advanced": "Avanzate",
+        "AdvancedEnabled": "Usa opzioni avanzate",
+        "AdvancedEnabledHint": "Disattivato: il token mantiene le proprie opzioni avanzate di luce e una luce lasciata a terra usa i valori predefiniti di Foundry. Attivato: questo schema le imposta, in mano e a terra. Non disponibile per una fonte di oscurità.",
         "Consume": "L'accensione consuma",
         "ConsumeModes": {
           "none": "Niente",

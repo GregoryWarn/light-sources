@@ -124,6 +124,14 @@ Each object in the `entries` array describes a single light source:
           speed: number,     //   Animation speed (1–10)
           intensity: number, //   Animation intensity (1–10)
           reverse: boolean   //   Reverse animation direction
+        },
+        advanced: {          // Optional – core's advanced light options; omit or null to leave the token's own untouched
+          coloration: number,  //   Coloration technique id (AdaptiveLightingShader.SHADER_TECHNIQUES), default 1
+          luminosity: number,  //   0–1, default 0.5
+          attenuation: number, //   0–1, default 0.5
+          saturation: number,  //   -1–1, default 0
+          contrast: number,    //   -1–1, default 0
+          shadows: number      //   0–1, default 0
         }
       }
     }
@@ -167,6 +175,9 @@ A pattern with `negative: true` is a **darkness source**: it dims the area insid
 Light and darkness draw from **two disjoint animation sets**. Foundry offers `torch`, `pulse`, `flame` and the rest to light sources, and `magicalGloom`, `roiling`, `hole` and `denseSmoke` to darkness sources; an animation type from the wrong set is not an error, it just renders with no animation at all. The light editor swaps the animation dropdown when the option is toggled, so a pattern flipped to negative loses whatever animation type it previously had. When registering a negative pattern in code, pick its `animation.type` from the darkness set or leave it empty.
 
 Negative is a property of the **pattern**, not of the source, so one source can own both a light pattern and a darkness pattern and the Token HUD offers them side by side.
+
+#### `advanced`
+Core's **advanced light options** for a pattern. Leave it out (or `null`) and the pattern sets none of them: a lit token keeps its own advanced values and a dropped light gets Foundry's defaults. Give the object and all six are set, both on the token and on a light dropped on the ground; a field left out takes the default listed above. The GM can switch them on per pattern in the light editor. The editor offers no advanced section for a `negative` pattern, as core's own light config offers none for darkness, so a GM saving a darkness pattern there clears it.
 
 #### `freeForAll`
 When `true`, the source appears in the Token HUD only for actor types enabled in the module's compatibility settings (the "Actor Types" tab) — it needs no inventory item, and the item is never consumed. Useful for ambient environmental effects ("everyone eligible can see in this magically lit area").

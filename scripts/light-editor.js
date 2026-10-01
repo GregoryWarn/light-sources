@@ -6,7 +6,9 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DURATION_MODES, CONSUME_MODES, RANGE_PRESETS, DURATION_PRESETS } from "./constants.js";
+import {
+  MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DURATION_MODES, CONSUME_MODES, RANGE_PRESETS, DURATION_PRESETS, ADVANCED_LIGHT_KEYS
+} from "./constants.js";
 import { getSources, getRegisteredSource, editSource, makePattern } from "./helpers.js";
 import { buildLightData } from "./light-manager.js";
 
@@ -15,8 +17,8 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 /**
  * Editor for a single registered light source. A source owns one or more light
  * patterns ("stages" — e.g. a flashlight's wide-short beam vs. narrow-long beam);
- * each pattern exposes only the basic light configuration and the light animation
- * (advanced light options are intentionally not editable). Consumption and
+ * each pattern exposes the basic light configuration and the light animation, with
+ * core's advanced light options folded away behind an opt-in section. Consumption and
  * duration are configured once and shared across all of the source's patterns.
  * While open, every edit is live-previewed on the currently controlled canvas
  * Token (if any), the same way core's placeable config sheets preview changes;
@@ -59,6 +61,13 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
    * @type {number}
    */
   #activePatternIndex = 0;
+
+  /**
+   * Ids of the patterns whose collapsed "Advanced" section is open, so a re-render
+   * (adding, removing or restoring a pattern) does not fold it shut again.
+   * @type {Set<string>}
+   */
+  #openAdvanced = new Set();
 
   static DEFAULT_OPTIONS = {
     id: `${MODULE_ID}-light-editor`,
@@ -156,6 +165,13 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       });
     }
 
+    for ( const details of this.element.querySelectorAll(".ls-pattern-advanced") ) {
+      details.addEventListener("toggle", () => {
+        if ( details.open ) this.#openAdvanced.add(details.dataset.patternId);
+        else this.#openAdvanced.delete(details.dataset.patternId);
+      });
+    }
+
     // The live preview reflects whichever pattern the user is editing: retarget
     // it whenever focus enters a pattern card.
     for ( const card of this.element.querySelectorAll(".ls-pattern-card") ) {
@@ -199,6 +215,12 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       // up with the new kind of source rather than wait for the next interaction.
       this.render().then(() => this.#applyPreviewLight());
       return;
+    }
+    // Toggled in place rather than re-rendered, so values typed before switching the
+    // advanced options off are still there if they are switched back on.
+    if ( event.target?.name?.endsWith(".light.advancedEnabled") ) {
+      const fieldset = event.target.closest(".ls-pattern-advanced")?.querySelector(".ls-advanced-fields");
+      if ( fieldset ) fieldset.disabled = !event.target.checked;
     }
     this.#applyPreviewLight();
   }
@@ -248,6 +270,11 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     const pattern = patterns[this.#activePatternIndex] ?? patterns[0];
     if ( !pattern ) return;
     const light = buildLightData(pattern);
+    // `updateSource` merges, so advanced values an earlier preview wrote would linger
+    // once the pattern stops setting them: put the token's own back instead.
+    if ( !pattern.light.advanced ) {
+      for ( const key of ADVANCED_LIGHT_KEYS ) light[key] = this.#previewOriginalLight[key];
+    }
     this.#previewToken.document.updateSource({ light });
     this.#previewToken.initializeLightSource();
   }
@@ -299,10 +326,20 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     const alpha = Number(data.light?.alpha);
     const angle = Number(data.light?.angle);
     const anim = data.light?.animation ?? {};
+    const negative = !!data.light?.negative;
+    // A darkness pattern has no advanced section (core disables those options for
+    // darkness), so it never keeps any.
+    const advanced = (data.light?.advancedEnabled && !negative)
+      ? Object.fromEntries(ADVANCED_LIGHT_KEYS.map(key => {
+        const field = foundry.documents.TokenDocument.schema.fields.light.fields[key];
+        const value = Number(data.light.advanced?.[key]);
+        return [key, Number.isFinite(value) ? Math.clamp(value, field.min ?? -Infinity, field.max ?? Infinity) : field.getInitialValue()];
+      }))
+      : null;
     return {
       dim: Math.max(0, Number(data.light?.dim) || 0),
       bright: Math.max(0, Number(data.light?.bright) || 0),
-      negative: !!data.light?.negative,
+      negative,
       angle: Math.clamp(Number.isFinite(angle) && (angle > 0) ? angle : 360, 5, 360),
       color: data.light?.color || "",
       alpha: Math.clamp(Number.isFinite(alpha) ? alpha : 0.5, 0, 1),
@@ -311,7 +348,8 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
         speed: Math.clamp(Number(anim.speed) || 5, 1, 10),
         intensity: Math.clamp(Number(anim.intensity) || 5, 1, 10),
         reverse: !!anim.reverse
-      }
+      },
+      advanced
     };
   }
 
@@ -336,6 +374,11 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     const registered = getRegisteredSource(this.options.sourceId);
     context.source = source;
     context.tabs = this._prepareTabs("primary");
+    // The advanced inputs are rendered from core's own token light fields, so their
+    // labels, hints and bounds are core's. Taken from TokenDocument rather than a bare
+    // LightData, whose schema core never localizes (its labels come out blank).
+    context.advancedFields = foundry.documents.TokenDocument.schema.fields.light.fields;
+    context.colorationTechniques = foundry.canvas.rendering.shaders.AdaptiveLightingShader.SHADER_TECHNIQUES;
     // A source must keep at least one pattern; hide the remove control otherwise.
     context.canRemove = patterns.length > 1;
     context.patterns = patterns.map((pattern, index) => ({
@@ -349,6 +392,10 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       // Only a pattern a module registers has a default to fall back to; one the GM
       // added by hand has none.
       canRestore: !!registered?.patterns.some(p => p.id === pattern.id),
+      advancedEnabled: !!pattern.light.advanced,
+      advancedOpen: this.#openAdvanced.has(pattern.id),
+      // Left undefined while off, so each input shows core's default for its field.
+      advanced: pattern.light.advanced ?? {},
       dimPresets: this.#buildPresetOptions(pattern.light.dim, RANGE_PRESETS),
       brightPresets: this.#buildPresetOptions(pattern.light.bright, RANGE_PRESETS),
       animationTypes: this.#buildAnimationOptions(pattern.light.animation?.type, pattern.light.negative)

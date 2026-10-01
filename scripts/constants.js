@@ -196,8 +196,8 @@ export const CHAT_CARD_ACCENT = "#ff9838";
 
 /**
  * Default light pattern assigned to a newly registered light source.
- * Only basic + animation fields are managed by this module; advanced light
- * options are intentionally left untouched on the token.
+ * Only basic + animation fields are managed by default; `advanced` stays null, which
+ * leaves the token's own advanced light options untouched (see ADVANCED_LIGHT_KEYS).
  * @type {object}
  */
 export const DEFAULT_LIGHT = {
@@ -212,8 +212,18 @@ export const DEFAULT_LIGHT = {
     speed: 5,
     intensity: 5,
     reverse: false
-  }
+  },
+  advanced: null
 };
+
+/**
+ * The `LightData` fields core groups under its "Advanced" light options. A pattern
+ * sets them only when its `light.advanced` object is filled in; while it is null the
+ * light keeps whatever the token (or, on the ground, core's defaults) already has —
+ * exactly how the module behaved before these options existed.
+ * @type {string[]}
+ */
+export const ADVANCED_LIGHT_KEYS = ["coloration", "luminosity", "attenuation", "saturation", "contrast", "shadows"];
 
 /**
  * The expiry event a light's ActiveEffect is stamped with, registered in

@@ -137,6 +137,9 @@
         "Speed": "Animation Speed",
         "Intensity": "Animation Intensity",
         "Reverse": "Reverse Direction",
+        "Advanced": "Advanced",
+        "AdvancedEnabled": "Use Advanced Options",
+        "AdvancedEnabledHint": "Off: the token keeps its own advanced light options, and a dropped light uses Foundry's defaults. On: this pattern sets them, in hand and on the ground. Not available for a darkness source.",
         "Consume": "Lighting Spends",
         "ConsumeModes": {
           "none": "Nothing",

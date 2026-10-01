@@ -49,7 +49,20 @@ export function sourceField() {
       speed: new f.NumberField({ required: true, nullable: false, integer: true, min: 1, max: 10, initial: 5 }),
       intensity: new f.NumberField({ required: true, nullable: false, integer: true, min: 1, max: 10, initial: 5 }),
       reverse: new f.BooleanField()
-    })
+    }),
+    // Null leaves the token's own advanced options alone. The bounds mirror core's
+    // LightData, and the coloration ids are core's shader techniques.
+    advanced: new f.SchemaField({
+      coloration: new f.NumberField({
+        required: true, nullable: false, integer: true, initial: 1,
+        choices: () => Object.values(foundry.canvas.rendering.shaders.AdaptiveLightingShader.SHADER_TECHNIQUES).map(t => t.id)
+      }),
+      luminosity: new f.NumberField({ required: true, nullable: false, min: 0, max: 1, initial: 0.5 }),
+      attenuation: new f.NumberField({ required: true, nullable: false, min: 0, max: 1, initial: 0.5 }),
+      saturation: new f.NumberField({ required: true, nullable: false, min: -1, max: 1, initial: 0 }),
+      contrast: new f.NumberField({ required: true, nullable: false, min: -1, max: 1, initial: 0 }),
+      shadows: new f.NumberField({ required: true, nullable: false, min: 0, max: 1, initial: 0 })
+    }, { required: true, nullable: true, initial: null })
   });
   // The nullable strings refuse blank: a blank StringField cleans a missing value to
   // "" rather than null, and a name-only source has no uuid or type at all.

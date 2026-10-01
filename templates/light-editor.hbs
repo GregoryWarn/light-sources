@@ -120,6 +120,33 @@
             <input type="checkbox" name="patterns.{{this.index}}.light.animation.reverse" {{checked this.light.animation.reverse}}>
           </div>
         </div>
+
+        {{#unless this.light.negative}}
+        <details class="ls-pattern-advanced" data-pattern-id="{{this.id}}"{{#if this.advancedOpen}} open{{/if}}>
+          <summary>{{localize "LIGHTSOURCES.LightEditor.Fields.Advanced"}}</summary>
+          <div class="form-group">
+            <label>{{localize "LIGHTSOURCES.LightEditor.Fields.AdvancedEnabled"}}</label>
+            <div class="form-fields">
+              <input type="checkbox" name="patterns.{{this.index}}.light.advancedEnabled" {{checked this.advancedEnabled}}>
+            </div>
+            <p class="hint">{{localize "LIGHTSOURCES.LightEditor.Fields.AdvancedEnabledHint"}}</p>
+          </div>
+          <fieldset class="ls-advanced-fields"{{#unless this.advancedEnabled}} disabled{{/unless}}>
+            {{formGroup ../advancedFields.coloration name=(concat "patterns." this.index ".light.advanced.coloration")
+                        value=this.advanced.coloration choices=../colorationTechniques valueAttr="id" labelAttr="label" localize=true}}
+            {{formGroup ../advancedFields.luminosity name=(concat "patterns." this.index ".light.advanced.luminosity")
+                        value=this.advanced.luminosity step=0.05}}
+            {{formGroup ../advancedFields.attenuation name=(concat "patterns." this.index ".light.advanced.attenuation")
+                        value=this.advanced.attenuation step=0.05}}
+            {{formGroup ../advancedFields.saturation name=(concat "patterns." this.index ".light.advanced.saturation")
+                        value=this.advanced.saturation step=0.05}}
+            {{formGroup ../advancedFields.contrast name=(concat "patterns." this.index ".light.advanced.contrast")
+                        value=this.advanced.contrast step=0.05}}
+            {{formGroup ../advancedFields.shadows name=(concat "patterns." this.index ".light.advanced.shadows")
+                        value=this.advanced.shadows step=0.05}}
+          </fieldset>
+        </details>
+        {{/unless}}
       </div>
     </fieldset>
     {{/each}}
