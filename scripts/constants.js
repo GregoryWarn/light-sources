@@ -20,6 +20,8 @@ export const MODULE_ID = "light-sources";
  *   here; it lives in memory on every client (see `getSources` in `helpers.js`).
  * - `MENU`: the light-sources configuration menu.
  * - `COMPAT_MENU`: the system-compatibility configuration menu.
+ * - `TRANSFER_MENU`: the import/export menu, which copies a world's light sources and
+ *   compatibility settings to another world through a JSON file.
  * - `ITEM_TYPES` / `ACTOR_TYPES`: which of the detected system's document
  *   types this module treats as light-source items / light-bearing actors.
  * - `QUANTITY_PATH`: dotted path (from the item root) to an item's quantity.
@@ -34,12 +36,13 @@ export const MODULE_ID = "light-sources";
  *   `getRestrictPlayerControl` in `helpers.js`).
  * - `ANNOUNCE_LIT`: whether lighting a source posts a chat message (see
  *   `getAnnounceLit` in `helpers.js`).
- * @type {{GM_SOURCES: string, MENU: string, COMPAT_MENU: string, ITEM_TYPES: string, ACTOR_TYPES: string, QUANTITY_PATH: string, CHARGES_PATH: string, CHARGES_SPENT_PATH: string, ALLOW_FREE_FOR_ALL_DROP: string, RESTRICT_PLAYER_CONTROL: string, ANNOUNCE_LIT: string}}
+ * @type {{GM_SOURCES: string, MENU: string, COMPAT_MENU: string, TRANSFER_MENU: string, ITEM_TYPES: string, ACTOR_TYPES: string, QUANTITY_PATH: string, CHARGES_PATH: string, CHARGES_SPENT_PATH: string, ALLOW_FREE_FOR_ALL_DROP: string, RESTRICT_PLAYER_CONTROL: string, ANNOUNCE_LIT: string}}
  */
 export const SETTINGS = {
   GM_SOURCES: "gmSources",
   MENU: "config",
   COMPAT_MENU: "compatibility",
+  TRANSFER_MENU: "transfer",
   ITEM_TYPES: "itemTypes",
   ACTOR_TYPES: "actorTypes",
   QUANTITY_PATH: "quantityPath",
@@ -168,12 +171,13 @@ export const SYSTEM_PRESETS = {
 
 /**
  * Handlebars template paths used by the module's Applications.
- * @type {{CONFIG: string, LIGHT_EDITOR: string, COMPAT: string}}
+ * @type {{CONFIG: string, LIGHT_EDITOR: string, COMPAT: string, TRANSFER: string}}
  */
 export const TEMPLATES = {
   CONFIG: `modules/${MODULE_ID}/templates/light-sources-config.hbs`,
   LIGHT_EDITOR: `modules/${MODULE_ID}/templates/light-editor.hbs`,
-  COMPAT: `modules/${MODULE_ID}/templates/compatibility-config.hbs`
+  COMPAT: `modules/${MODULE_ID}/templates/compatibility-config.hbs`,
+  TRANSFER: `modules/${MODULE_ID}/templates/transfer-config.hbs`
 };
 
 /**

@@ -11,6 +11,11 @@
         "Label": "Configure System Compatibility",
         "Hint": "Choose which of the detected system's item and actor types this module uses, and where an item's quantity is stored. GM only."
       },
+      "Transfer": {
+        "Name": "Import and Export",
+        "Label": "Import or Export Light Sources",
+        "Hint": "Copy this world's light sources and system compatibility settings to a JSON file, or load them from one made in another world. GM only."
+      },
       "AllowFreeForAllDrop": {
         "Name": "Allow Dropping Free for All Lights",
         "Hint": "Let a lit \"Free for All\" light be dropped on the ground. No item backs these sources, so dropping one costs nothing and can be repeated without limit. Turn this off to keep free lights on tokens only. Lights that come from a carried item are always droppable."
@@ -68,6 +73,27 @@
       "Add": "Add Pattern",
       "Remove": "Remove Pattern",
       "Restore": "Restore this pattern to its module default"
+    },
+    "Transfer": {
+      "Title": "Import and Export Light Sources",
+      "ExportHeading": "Export",
+      "ExportHint": "Saves this world's light sources, your edits to sources that modules provide, and the system compatibility settings to a JSON file. Sources a module provides are not included: they come back in any world where that module is active.",
+      "Export": "Export to File",
+      "ImportHeading": "Import",
+      "ImportHint": "Loads a file exported from another world. Sources in the file replace the ones here with the same item, and the others here are kept. The compatibility settings are applied only when the file comes from the same game system.",
+      "Import": "Import from File",
+      "NoFile": "Choose a file to import first.",
+      "NotAnExport": "This file is not a Light Sources export.",
+      "ConfirmTitle": "Import Light Sources",
+      "Added": "Adds {count}: {names}.",
+      "Replaced": "Replaces {count}: {names}.",
+      "NoSources": "The file holds no light sources.",
+      "Invalid": "Skips {count} that are not valid light sources.",
+      "Unresolved": "These refer to an item that does not exist in this world, so they will only match carried items with the same name and type: {names}.",
+      "CompatApplied": "Replaces the system compatibility settings with the file's.",
+      "CompatOtherSystem": "Keeps this world's system compatibility settings: the file comes from another game system.",
+      "ConfirmQuestion": "Import?",
+      "Done": "Light sources imported."
     },
     "Compat": {
       "Title": "System Compatibility",

@@ -35,6 +35,7 @@ And then the table stops. The GM alt-tabs to the token settings, types a dim rad
 * 📏 **Handy presets.** The radius and duration fields come with dropdown presets (10, 15, 20, 30, 60) so you can size a light — or a burn time — in a click instead of typing. Pick **Custom** whenever you want an exact value instead.
 * 🗺️ **The light follows the character.** It stays with them across scenes, and blowing it out restores exactly the token lighting they had before.
 * 💬 **Chat announcements.** Lighting a source, dropping it on the ground, picking it back up and burning out each post a styled chat card, so the table always knows who has light and who just lost it. Switching between a source's own patterns stays quiet — that's the same flame reshaped, not a new one. Lighting announcements can be turned off entirely in the world settings if your table finds them noisy. You can also send any registered light source to chat as a draggable card — drop it on an actor sheet to add it to their inventory.
+* 📦 **Take your setup to another world.** Export your light sources and compatibility settings to a file, and import them in your next campaign — see [below](#for-the-gm--copy-your-setup-to-another-world).
 * 🔒 **GM-only mode.** A world setting locks the Token HUD's light controls to the GM alone — players still see what's lit, but activating, extinguishing, dropping and picking up sources becomes the GM's call.
 * 🔌 **Developer API.** Module and system developers can [programmatically register light sources](docs/register-sources-api.md) from their own code — no manual drag-and-drop needed. Registered sources merge seamlessly with the GM's hand-picked ones. They can also **light a source from code**, for lights whose cost isn't an item — a spell slot, a fatigue token, anything only the system knows how to charge — and keep such a source **out of the Token HUD**, so the light only ever comes through the system's own cast. A module that moves items between sheets and the map, such as loot, can **carry a lit lantern to the ground and back** with its item, and a system that gives items from one character to another can **hand the light over** with the item, so a lit torch arrives lit.
 
@@ -72,6 +73,20 @@ There are also a few world settings under **Game Settings → Configure Settings
 * **Announce Lights in Chat** (on by default) — turn off to stop lighting a source from posting the "lights it" chat card. Dropping, picking up and burning out keep announcing regardless.
 
 Tip: select a token on the canvas while you edit — you'll watch the light change on the map in real time.
+
+### For the GM — copy your setup to another world
+
+Open **Import or Export Light Sources** in the module settings. **Export to File** saves a JSON file holding:
+
+* every light source you added — dragged items and the ones added by name;
+* your edits to sources that a module or game system provides, and the ones of those you removed;
+* the System Compatibility settings (item types, actor types, quantity and charges paths).
+
+Sources a module provides are not in the file as such: they come back in any world where that module is active, and your edits to them apply there again.
+
+In the other world, choose the file and click **Import from File**. You see what will change before anything is written. A source in the file replaces the one with the same item, and the sources already there are kept. The compatibility settings are applied only when both worlds use the same game system.
+
+A source made from an item in a world's Items directory points to an item that the other world doesn't have. It is imported anyway, and the import lists it: it still works for any carried item with the same name and type, but **Open Item** and **Send to Chat** can't find it. For a setup that moves cleanly between worlds, drag your light items from a compendium.
 
 ### For the GM — hand a light over to the players
 

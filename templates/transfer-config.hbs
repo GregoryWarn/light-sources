@@ -1,0 +1,20 @@
+<div class="ls-transfer-main">
+  <section class="ls-transfer-section">
+    <h4>{{localize "LIGHTSOURCES.Transfer.ExportHeading"}}</h4>
+    <p class="hint">{{localize "LIGHTSOURCES.Transfer.ExportHint"}}</p>
+    <button type="button" data-action="exportSources">
+      <i class="fa-solid fa-file-export" inert></i>
+      {{localize "LIGHTSOURCES.Transfer.Export"}}
+    </button>
+  </section>
+
+  <section class="ls-transfer-section">
+    <h4>{{localize "LIGHTSOURCES.Transfer.ImportHeading"}}</h4>
+    <p class="hint">{{localize "LIGHTSOURCES.Transfer.ImportHint"}}</p>
+    <input type="file" name="file" accept=".json">
+    <button type="button" data-action="importSources">
+      <i class="fa-solid fa-file-import" inert></i>
+      {{localize "LIGHTSOURCES.Transfer.Import"}}
+    </button>
+  </section>
+</div>

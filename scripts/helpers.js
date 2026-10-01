@@ -51,13 +51,15 @@ export function sourceField() {
       reverse: new f.BooleanField()
     })
   });
+  // The nullable strings refuse blank: a blank StringField cleans a missing value to
+  // "" rather than null, and a name-only source has no uuid or type at all.
   return new f.SchemaField({
     id: new f.StringField({ required: true, blank: false }),
-    uuid: new f.StringField({ required: true, nullable: true, initial: null }),
+    uuid: new f.StringField({ required: true, nullable: true, blank: false, initial: null }),
     name: new f.StringField({ required: true, blank: false }),
     img: new f.StringField({ required: true, blank: false, initial: DEFAULT_SOURCE_IMG }),
-    type: new f.StringField({ required: true, nullable: true, initial: null }),
-    managedBy: new f.StringField({ required: true, nullable: true, initial: null }),
+    type: new f.StringField({ required: true, nullable: true, blank: false, initial: null }),
+    managedBy: new f.StringField({ required: true, nullable: true, blank: false, initial: null }),
     consume: new f.StringField({ required: true, choices: Object.values(CONSUME_MODES), initial: CONSUME_MODES.NONE }),
     freeForAll: new f.BooleanField(),
     coverable: new f.BooleanField(),

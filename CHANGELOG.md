@@ -1,5 +1,9 @@
 # Unreleased
 
+### Added
+
+* **Copy light sources to another world** (#11). A new **Import or Export Light Sources** menu in the module settings saves the world's light sources, the GM's edits to sources that modules provide, and the System Compatibility settings to a JSON file, and loads such a file in another world. The import shows what it will change before writing anything. Compatibility is applied only between worlds of the same game system. A source whose item does not exist in the new world is still imported and keeps working by name and type.
+
 ### Changed
 
 * **Light sources registered by other modules are no longer stored in the world.** Each module registers its sources again every session, on every client, and only the GM's own sources and the GM's edits are saved. A module that is disabled takes its sources with it, unless the GM edited them. Modules using the API must call `registerSources` on every client, not only the GM's. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#gm-customization-important).

@@ -10,6 +10,7 @@ import { MODULE_ID, SETTINGS, SOCKET_EVENT, SYSTEM_PRESETS, EXPIRY_EVENT } from 
 import { sourceField } from "./helpers.js";
 import { LightSourcesConfig } from "./light-sources-config.js";
 import { CompatibilityConfig } from "./compatibility-config.js";
+import { TransferConfig } from "./transfer-config.js";
 import { registerTokenHudHooks } from "./token-hud.js";
 import { registerInteractiveLightHooks } from "./interactive-lights.js";
 import { startExpiryTicker, sweepExpiredLights, handleSocketMessage, onDeleteItem } from "./light-manager.js";
@@ -116,6 +117,15 @@ Hooks.once("init", () => {
     hint: "LIGHTSOURCES.Settings.Compat.Hint",
     icon: "fa-solid fa-gears",
     type: CompatibilityConfig,
+    restricted: true
+  });
+
+  game.settings.registerMenu(MODULE_ID, SETTINGS.TRANSFER_MENU, {
+    name: "LIGHTSOURCES.Settings.Transfer.Name",
+    label: "LIGHTSOURCES.Settings.Transfer.Label",
+    hint: "LIGHTSOURCES.Settings.Transfer.Hint",
+    icon: "fa-solid fa-file-export",
+    type: TransferConfig,
     restricted: true
   });
 });

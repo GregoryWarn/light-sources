@@ -11,6 +11,11 @@
         "Label": "Configura compatibilità del sistema",
         "Hint": "Scegli quali tipi di oggetti e attori del sistema rilevato vengono utilizzati da questo modulo e dove viene memorizzata la quantità di un oggetto. Solo il GM."
       },
+      "Transfer": {
+        "Name": "Importa ed esporta",
+        "Label": "Importa o esporta le fonti di luce",
+        "Hint": "Copia le fonti di luce di questo mondo e le impostazioni di compatibilità del sistema in un file JSON, oppure caricale da un file creato in un altro mondo. Solo GM."
+      },
       "AllowFreeForAllDrop": {
         "Name": "Consenti di lasciare a terra le fonti gratuite",
         "Hint": "Consente di lasciare a terra una fonte di luce \"gratuita\" accesa. Queste fonti non sono associate ad alcun oggetto, quindi lasciarne una a terra non ha alcun costo e l'operazione può essere ripetuta senza limiti. Disabilita questa opzione per mantenere le fonti gratuite esclusivamente sui token. Le fonti di luce provenienti da un oggetto trasportato possono sempre essere lasciate a terra."
@@ -68,6 +73,27 @@
       "Add": "Aggiungi schema",
       "Remove": "Rimuovi schema",
       "Restore": "Ripristina questo schema alle impostazioni predefinite del modulo"
+    },
+    "Transfer": {
+      "Title": "Importa ed esporta fonti di luce",
+      "ExportHeading": "Esporta",
+      "ExportHint": "Salva in un file JSON le fonti di luce di questo mondo, le tue modifiche alle fonti fornite dai moduli e le impostazioni di compatibilità del sistema. Le fonti fornite da un modulo non sono incluse: ritornano in ogni mondo in cui quel modulo è attivo.",
+      "Export": "Esporta su file",
+      "ImportHeading": "Importa",
+      "ImportHint": "Carica un file esportato da un altro mondo. Le fonti del file sostituiscono quelle di questo mondo con lo stesso oggetto, e le altre restano. Le impostazioni di compatibilità vengono applicate solo se il file proviene dallo stesso sistema di gioco.",
+      "Import": "Importa da file",
+      "NoFile": "Scegli prima un file da importare.",
+      "NotAnExport": "Questo file non è un'esportazione di Light Sources.",
+      "ConfirmTitle": "Importa fonti di luce",
+      "Added": "Aggiunge {count}: {names}.",
+      "Replaced": "Sostituisce {count}: {names}.",
+      "NoSources": "Il file non contiene fonti di luce.",
+      "Invalid": "Salta {count} che non sono fonti di luce valide.",
+      "Unresolved": "Queste fanno riferimento a un oggetto che non esiste in questo mondo, quindi corrisponderanno solo a oggetti trasportati con lo stesso nome e tipo: {names}.",
+      "CompatApplied": "Sostituisce le impostazioni di compatibilità del sistema con quelle del file.",
+      "CompatOtherSystem": "Mantiene le impostazioni di compatibilità di questo mondo: il file proviene da un altro sistema di gioco.",
+      "ConfirmQuestion": "Importare?",
+      "Done": "Fonti di luce importate."
     },
     "Compat": {
       "Title": "Compatibilità del sistema",

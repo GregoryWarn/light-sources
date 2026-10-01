@@ -30,6 +30,9 @@
     },
     {
       "src": "styles/token-hud.css"
+    },
+    {
+      "src": "styles/transfer-config.css"
     }
   ],
   "esmodules": [
