@@ -204,7 +204,7 @@ Covering is implemented as core's own `disabled` on the effect, not as a radius 
 
 Two limits follow from the module's one-light-per-actor rule, and neither changes with `coverable`:
 
-- **Extinguish still ends the light for good**, covered or not, and so does lighting a *different* source — a covered light is deleted like any other when it is replaced. To keep a spell alive while lighting something else, **drop** it: on the ground it goes on burning down, and anyone can pick it back up.
+- **Extinguish still ends the light for good**, covered or not, and so does lighting a *different* source — a covered light is deleted like any other when it is replaced. Only a `consume: "charge"` light keeps its unburned time, on its Item (see [`consume`](#consume)). To keep a spell alive while lighting something else, **drop** it: on the ground it goes on burning down, and anyone can pick it back up.
 - **A covered light dropped on the ground stays covered**, using the AmbientLight's native `hidden` state — the same state the map control switches. Picking it back up returns it covered. This applies only to `coverable` sources: a torch snuffed on the floor and picked up lights normally, exactly as it always did.
 
 #### Dropping

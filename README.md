@@ -44,7 +44,7 @@ And then the table stops. The GM alt-tabs to the token settings, types a dim rad
 
 ### For the GM — set it up once
 
-1. Open **Game Settings → Configure Settings → Light Sources → Configure System Compatibility**. Enable the **item types** that count as light sources, the **actor types** allowed to use Free-for-All sources (actors carrying the item can always light it, no matter their type), and enter the **item quantity path** (where your system stores an item's quantity, e.g. `system.quantity`). On Daggerheart this is already filled in for you.
+1. Open **Game Settings → Configure Settings → Light Sources → Configure System Compatibility**. Enable the **item types** that count as light sources, the **actor types** allowed to use Free-for-All sources (actors carrying the item can always light it, no matter their type), and enter the **item quantity path** (where your system stores an item's quantity, e.g. `system.quantity`) — plus, for items with uses, the **charges path** (e.g. `system.uses.value`). On Daggerheart this is already filled in for you.
 
    ![Configure System Compatibility](docs/system-setup.webp)
 
