@@ -128,6 +128,9 @@ function buildToggleButton(palette, active) {
   // but the HUD re-renders on every token selection and after every light change.
   const tooltip = buildToggleTooltip(active);
   button.setAttribute("aria-label", tooltip);
+  // An empty data-tooltip is what makes core's TooltipManager show the aria-label: without
+  // the attribute it never activates on this element (core's own HUD buttons do the same).
+  button.dataset.tooltip = "";
   const icon = document.createElement("i");
   icon.className = "fa-solid fa-fire-flame-curved";
   icon.inert = true;
