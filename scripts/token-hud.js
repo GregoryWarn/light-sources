@@ -6,9 +6,9 @@
  * it under the terms of the GNU General Public License version 3.
  */
 
-import { MODULE_ID, DURATION_MODES } from "./constants.js";
+import { MODULE_ID, DURATION_MODES, CONSUME_MODES } from "./constants.js";
 import {
-  getSources, findMatchingItems, getActorTypes, getAllowFreeForAllDrop, getRestrictPlayerControl, findGroundLight
+  getSources, findMatchingItems, getActorTypes, getAllowFreeForAllDrop, getRestrictPlayerControl, findGroundLight, getBurnLeft
 } from "./helpers.js";
 import {
   getActiveLight, activateLight, extinguishLight, setLightStowed, dropLight, pickupLight
@@ -168,9 +168,16 @@ function buildPalette(hud, actor, entries, active, ground) {
   // something the player can see right there, unlike the inventory rows below it.
   if ( ground ) palette.append(buildPickupButton(hud, actor, palette, ground));
 
-  for ( const { source } of entries ) {
+  for ( const { source, items } of entries ) {
     // A lone pattern is the implicit default and needs no secondary label.
     const multiPattern = source.patterns.length > 1;
+    // What a charge put out early kept, on the Item that lighting would burn first (see
+    // `choosePayment`), capped the same way. Not for the lit source: its other patterns
+    // reshape the flame already burning, and the flame button tells its time.
+    const kept = (source.consume === CONSUME_MODES.CHARGE) && (source.durationMinutes > 0)
+      && (active?.sourceId !== source.id)
+      ? Math.min(items.map(getBurnLeft).find(s => s > 0) ?? 0, source.durationMinutes * 60)
+      : 0;
 
     for ( const pattern of source.patterns ) {
       const isActive = (active?.sourceId === source.id) && (active?.patternId === pattern.id);
@@ -179,6 +186,14 @@ function buildPalette(hud, actor, entries, active, ground) {
       button.type = "button";
       button.classList.add("ls-entry");
       if ( isActive ) button.classList.add("ls-active");
+      // Told on hover, like the flame button's time: an empty data-tooltip makes core's
+      // TooltipManager show the aria-label.
+      if ( kept ) {
+        button.dataset.tooltip = "";
+        button.setAttribute("aria-label", game.i18n.format("LIGHTSOURCES.Hud.TooltipRemaining", {
+          item: source.name, minutes: Math.ceil(kept / 60)
+        }));
+      }
 
       const img = document.createElement("img");
       img.className = "ls-icon";
