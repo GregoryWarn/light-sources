@@ -265,6 +265,8 @@ export function registerInteractiveLightHooks() {
   Hooks.on("controlToken", refreshControls);
   Hooks.on("updateToken", onUpdateToken);
 
+  Hooks.on("activateCanvasLayer", syncLayerVisibility);
+
   Hooks.on("renderAmbientLightConfig", injectInteractiveField);
 }
 
@@ -285,7 +287,21 @@ async function onCanvasReady() {
 
   layer = canvas.controls.addChild(new PIXI.Container());
   layer.eventMode = "passive";
+  syncLayerVisibility();
   for ( const light of (canvas.scene?.lights ?? []) ) await addControl(light);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Hide every control while the lighting layer is active. Each control sits exactly
+ * over core's own icon for its light, on a layer drawn above it, so there a GM's
+ * click to drag the light switched it off instead. On that layer core already
+ * switches a light with a right-click, and players never activate it.
+ * @returns {void}
+ */
+function syncLayerVisibility() {
+  if ( layer ) layer.visible = !canvas.lighting?.active;
 }
 
 /* -------------------------------------------- */
