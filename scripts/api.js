@@ -12,7 +12,7 @@ import {
   getChargesSpentPath
 } from "./helpers.js";
 import {
-  activateLight, deactivateLight, getActiveLight, dropItemLight, pickupItemLight, moveItemLight
+  activateLight, extinguishLight, getActiveLight, dropItemLight, pickupItemLight, moveItemLight
 } from "./light-manager.js";
 
 /**
@@ -197,12 +197,13 @@ export async function activate(actor, id, { pattern } = {}) {
 
 /**
  * Put out whatever light is burning on an Actor, exactly as the Token HUD's
- * extinguish control does. A no-op when nothing is lit.
+ * extinguish control does, down to a `"charge"` light keeping the time it had left on
+ * its Item. A no-op when nothing is lit.
  * @param {Actor} actor The actor whose light is extinguished.
  * @returns {Promise<void>}
  */
 export async function deactivate(actor) {
-  return deactivateLight(actor);
+  return extinguishLight(actor);
 }
 
 /**

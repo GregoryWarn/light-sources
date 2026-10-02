@@ -11,7 +11,7 @@ import {
   getSources, findMatchingItems, getActorTypes, getAllowFreeForAllDrop, getRestrictPlayerControl, findGroundLight
 } from "./helpers.js";
 import {
-  getActiveLight, activateLight, deactivateLight, setLightStowed, dropLight, pickupLight
+  getActiveLight, activateLight, extinguishLight, setLightStowed, dropLight, pickupLight
 } from "./light-manager.js";
 
 /**
@@ -206,7 +206,7 @@ function buildPalette(hud, actor, entries, active, ground) {
         // Clicking the already-lit entry is how a player expects to put it out —
         // the same action as the dedicated extinguish row below, just reachable
         // without an extra scan down the palette.
-        if ( isActive ) await deactivateLight(actor);
+        if ( isActive ) await extinguishLight(actor);
         else await activateLight(actor, source, pattern);
         hud.render();
       });
@@ -250,7 +250,7 @@ function buildPalette(hud, actor, entries, active, ground) {
       event.preventDefault();
       palette.classList.remove("ls-open");
       if ( guardPlayerControl() ) return;
-      await deactivateLight(actor);
+      await extinguishLight(actor);
       hud.render();
     });
     palette.append(off);

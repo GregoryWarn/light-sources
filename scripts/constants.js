@@ -75,12 +75,17 @@ export const SETTINGS = {
  *   map. The GM sets it per light in the native light config; lights dropped by a
  *   player get it automatically. A light another module manages keeps the flag but
  *   gets no control while that module is active (see `isManagedElsewhere`).
- * @type {{EFFECT_LIGHT: string, GROUND_LIGHT: string, INTERACTIVE: string}}
+ * - `BURN_LEFT`: set on an Item, the whole seconds of burn time left when the flame
+ *   of a `"charge"` source burning on it was put out. The next lighting of that Item
+ *   burns them instead of spending a charge, and removes the flag. Counted on the
+ *   source's own clock: game seconds or real seconds.
+ * @type {{EFFECT_LIGHT: string, GROUND_LIGHT: string, INTERACTIVE: string, BURN_LEFT: string}}
  */
 export const FLAGS = {
   EFFECT_LIGHT: "light",
   GROUND_LIGHT: "groundLight",
-  INTERACTIVE: "interactive"
+  INTERACTIVE: "interactive",
+  BURN_LEFT: "burnLeft"
 };
 
 /**

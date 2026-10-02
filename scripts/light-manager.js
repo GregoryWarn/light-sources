@@ -12,7 +12,7 @@ import {
 } from "./constants.js";
 import {
   findMatchingItems, buildLightMessage, getItemRemaining, getQuantityPath, getChargesPath, getChargesSpentPath, getSources,
-  getAnnounceLit
+  getAnnounceLit, getBurnLeft
 } from "./helpers.js";
 
 /**
@@ -123,15 +123,16 @@ function buildLightChanges(pattern) {
  * A source with no configured duration burns until it is put out and stores no
  * stamp at all.
  * @param {object} source The registered light source definition.
+ * @param {number} [seconds] How long it burns, when not the source's full duration: what
+ *   a charge put out early kept (see `choosePayment`).
  * @returns {{mode: string, expiresAtWorld: number|null, expiresAtReal: number|null}} The timing payload.
  */
-function buildTiming(source) {
+function buildTiming(source, seconds = Math.max(0, source.durationMinutes * 60) || 0) {
   const mode = source.durationMode === DURATION_MODES.REAL ? DURATION_MODES.REAL : DURATION_MODES.WORLD;
-  const minutes = source.durationMinutes > 0 ? source.durationMinutes : 0;
   return {
     mode,
-    expiresAtWorld: (mode === DURATION_MODES.WORLD) && minutes ? game.time.worldTime + (minutes * 60) : null,
-    expiresAtReal: (mode === DURATION_MODES.REAL) && minutes ? Date.now() + (minutes * 60000) : null
+    expiresAtWorld: (mode === DURATION_MODES.WORLD) && seconds ? game.time.worldTime + seconds : null,
+    expiresAtReal: (mode === DURATION_MODES.REAL) && seconds ? Date.now() + (seconds * 1000) : null
   };
 }
 
@@ -223,8 +224,14 @@ function isExpired(flag, now) {
  */
 async function createLightEffect(actor, source, pattern, timing, { stowed = false, itemId = null } = {}) {
   // Only one light effect at a time: remove any previous one (switching sources / re-lighting).
-  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT)).map(e => e.id);
-  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale);
+  // Replacing a flame puts it out as surely as extinguishing it, so a charge it was burning
+  // keeps its time the same way.
+  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT));
+  if ( stale.length ) {
+    const flames = stale.map(e => e.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT));
+    await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
+    for ( const flame of flames ) await rememberBurnLeft(actor, flame);
+  }
 
   // World-time lights carry a native duration, so the effect shows how long the
   // light has left like any other timed effect. Real-time lights keep an indefinite
@@ -277,36 +284,46 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
  * burns on. The flame leaves its Item only when a copy of that Item is spent. A lantern,
  * and an object whose charge is spent, go on being the light. A free-for-all source has
  * no item at all. When several items match, the first whose flame is not already lying
- * on the ground is the one lit. Nothing is spent here: `activateLight` spends only once
- * the light exists.
+ * on the ground is the one lit — preferring, for a source that spends a charge, one that
+ * kept the burn time of a charge put out early, which it burns instead of spending
+ * another (see `rememberBurnLeft`). Nothing is spent here: `activateLight` spends only
+ * once the light exists.
  * @param {Actor} actor The actor being lit.
  * @param {object} source The registered light source definition.
- * @returns {{item: Item|null, itemId: string|null}|null} The Item to spend one of (null
- *   when nothing is spent) and the Item the flame burns on; or null when refused because
- *   nothing carried can pay, or because the flame of every matching item lies on the
- *   ground (a warning has been shown).
+ * @returns {{item: Item|null, itemId: string|null, resume: number}|null} The Item to spend
+ *   one of (null when nothing is spent), the Item the flame burns on, and the seconds it
+ *   burns for when it resumes a charge put out early (0 for a fresh light); or null when
+ *   refused because nothing carried can pay, or because the flame of every matching item
+ *   lies on the ground (a warning has been shown).
  */
 function choosePayment(actor, source) {
-  if ( source.freeForAll ) return { item: null, itemId: null };
+  if ( source.freeForAll ) return { item: null, itemId: null, resume: 0 };
   const matches = findMatchingItems(actor, source);
   // A "copy" flame never belongs to its Item, so the stack can go on lighting copies
   // while earlier ones lie on the ground.
   const onGround = (source.consume === CONSUME_MODES.COPY) ? new Set() : itemsWithLightOnGround(actor);
-  const item = matches.find(i => !onGround.has(i.id));
+  const free = matches.filter(i => !onGround.has(i.id));
+  // Only a charge is worth resuming: a "none" light starts a full duration for free anyway.
+  // Lighting the half-burned lantern first keeps a fresh one from spending its charge.
+  const resumable = (source.consume === CONSUME_MODES.CHARGE) && (source.durationMinutes > 0);
+  const item = (resumable && free.find(i => getBurnLeft(i) > 0)) || free[0];
   if ( matches.length && !item ) {
     ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.OnGround", { item: source.name }));
     return null;
   }
   // A "none" source lights without an item, as 0.2.0 did through the API (a spell's
   // light, say); only a source that spends needs something to spend.
-  if ( source.consume === CONSUME_MODES.NONE ) return { item: null, itemId: item?.id ?? null };
+  if ( source.consume === CONSUME_MODES.NONE ) return { item: null, itemId: item?.id ?? null, resume: 0 };
   if ( !item ) {
     ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.NoItem", { name: actor.name, item: source.name }));
     return null;
   }
+  // Capped at the source's current duration, so a GM who shortens the source shortens
+  // the time a charge kept too.
+  const resume = resumable ? Math.min(getBurnLeft(item), source.durationMinutes * 60) : 0;
   // Chosen before the spend: the last charge takes the Item to 0, which hides it from
   // findMatchingItems, and it is still the Item that burns.
-  return { item, itemId: source.consume === CONSUME_MODES.COPY ? null : item.id };
+  return { item, itemId: source.consume === CONSUME_MODES.COPY ? null : item.id, resume };
 }
 
 /**
@@ -402,13 +419,16 @@ export async function activateLight(actor, source, pattern) {
   if ( !payment ) return false;
   // The light is created before anything is spent, because a system can refuse the effect
   // without throwing, and a light that never existed must cost nothing and announce nothing.
-  if ( !(await createLightEffect(actor, source, pattern, buildTiming(source), { itemId: payment.itemId })) ) {
+  const timing = payment.resume ? buildTiming(source, payment.resume) : buildTiming(source);
+  if ( !(await createLightEffect(actor, source, pattern, timing, { itemId: payment.itemId })) ) {
     ui.notifications.warn(game.i18n.format("LIGHTSOURCES.Hud.Refused", { name: actor.name, item: source.name }));
     return false;
   }
   if ( payment.item ) {
     try {
-      await spendOne(actor, payment.item, source.consume);
+      // A charge put out early is paid for already: what it kept is burned, not another charge.
+      if ( payment.resume ) await payment.item.unsetFlag(MODULE_ID, FLAGS.BURN_LEFT);
+      else await spendOne(actor, payment.item, source.consume);
     } catch(err) {
       // A light that was not paid for does not stay lit.
       await deactivateLight(actor);
@@ -1013,6 +1033,49 @@ export function handleSocketMessage(payload) {
  */
 export async function deactivateLight(actor) {
   return deactivateLights([actor]);
+}
+
+/**
+ * Put out the light burning on an Actor because someone chose to: the Token HUD's
+ * extinguish controls and the public `deactivate`. A charge put out before it burned
+ * down keeps the time it had left (see `rememberBurnLeft`).
+ *
+ * Kept apart from `deactivateLight`, which the module also calls when a flame moves
+ * rather than goes out (to the ground, to another actor), when its Item is gone, and to
+ * take back a light that was never paid for. Remembering there would mint burn time.
+ * @param {Actor} actor The actor whose light is extinguished.
+ * @returns {Promise<void>}
+ */
+export async function extinguishLight(actor) {
+  const flame = getActiveLight(actor);
+  await deactivateLight(actor);
+  // A cancelled deletion resolves without throwing; the flame is still burning then.
+  if ( getLightEffect(actor) ) return;
+  await rememberBurnLeft(actor, flame);
+}
+
+/**
+ * Keep on its Item the burn time a just-extinguished flame had left, when that flame
+ * burned a charge: the next lighting of that Item burns it instead of another charge
+ * (see `choosePayment`). Nothing else is worth keeping: a "none" light starts a full
+ * duration for free, and a "copy" or free-for-all flame belongs to no Item.
+ *
+ * Called only once the flame is out. Written the other way round, a flame that then
+ * failed to go out would burn down with its time also kept on the Item, and that time
+ * would light it again for free.
+ * @param {Actor} actor The actor the flame burned on.
+ * @param {object|null} flame The flame's `EFFECT_LIGHT` payload, read before it went out.
+ * @returns {Promise<void>}
+ */
+async function rememberBurnLeft(actor, flame) {
+  if ( !flame?.itemId ) return;
+  const source = getSources().find(s => s.id === flame.sourceId);
+  if ( source?.consume !== CONSUME_MODES.CHARGE ) return;
+  const item = actor.items.get(flame.itemId);
+  const seconds = Math.floor(flame.mode === DURATION_MODES.REAL
+    ? (flame.expiresAtReal != null ? (flame.expiresAtReal - Date.now()) / 1000 : 0)
+    : (flame.expiresAtWorld != null ? flame.expiresAtWorld - game.time.worldTime : 0));
+  if ( item && (seconds > 0) ) await item.setFlag(MODULE_ID, FLAGS.BURN_LEFT, seconds);
 }
 
 /**

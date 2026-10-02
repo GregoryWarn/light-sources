@@ -340,6 +340,16 @@ export function getChargesSpentPath() {
 }
 
 /**
+ * The burn time an Item kept from a charge put out before it burned down (see
+ * `FLAGS.BURN_LEFT`).
+ * @param {Item} item The item to read.
+ * @returns {number} Whole seconds left, or 0 when nothing is kept.
+ */
+export function getBurnLeft(item) {
+  return Number(item.getFlag(MODULE_ID, FLAGS.BURN_LEFT)) || 0;
+}
+
+/**
  * How many of what `mode` spends an Item has left: copies through the quantity path,
  * charges through the charges path. NaN when the path is unset or does not resolve to a
  * number, which callers treat as "unknown": always available, never spent.
@@ -388,7 +398,8 @@ export function listDocumentTypes(documentName) {
  * What is left gates only a source that spends what it matches. For a source that
  * spends a copy or a charge, an item worn down to 0 is excluded: it is kept in the
  * inventory rather than deleted, but stops being available for consumption or display
- * in the Token HUD. A source that spends nothing never reads the number, so its item
+ * in the Token HUD — unless it kept the burn time of a charge put out early, which
+ * lights without spending one (see `getBurnLeft`). A source that spends nothing never reads the number, so its item
  * matches at any count — which is what lets a reusable tool (a lantern, a glowing
  * blade) work in a system where the configured path is optional per item and rests at 0.
  * Items whose count cannot be determined (no path configured) are always treated as
@@ -406,6 +417,8 @@ export function findMatchingItems(actor, source, { anyCount = false } = {}) {
     // "Empty" and "not a light source" are different questions: only the item that
     // will actually be spent is gated on what it has left.
     if ( anyCount || (source.consume === CONSUME_MODES.NONE) ) return true;
+    // A charge put out half burned is still there to burn, even after the last one was spent.
+    if ( (source.consume === CONSUME_MODES.CHARGE) && (getBurnLeft(item) > 0) ) return true;
     const remaining = getItemRemaining(item, source.consume);
     return !Number.isFinite(remaining) || (remaining > 0);
   };
