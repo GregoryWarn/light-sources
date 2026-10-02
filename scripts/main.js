@@ -13,7 +13,7 @@ import { CompatibilityConfig } from "./compatibility-config.js";
 import { TransferConfig } from "./transfer-config.js";
 import { registerTokenHudHooks } from "./token-hud.js";
 import { registerInteractiveLightHooks } from "./interactive-lights.js";
-import { startExpiryTicker, sweepExpiredLights, handleSocketMessage, onDeleteItem } from "./light-manager.js";
+import { startExpiryTicker, sweepLights, handleSocketMessage, onDeleteItem } from "./light-manager.js";
 import {
   registerSources, registerCompatibility, activate, deactivate, getActive, dropLightWithItem, pickupGroundLight,
   handOverLight, handleHandOverQuery
@@ -149,9 +149,10 @@ Hooks.once("ready", () => {
 });
 
 // In-game-time lights burn down with the world clock: extinguish them whenever
-// it advances past their expiry (real-time lights are handled by the ticker).
+// it advances past their expiry, and switch the ones that crossed into or out of
+// their running-low window (real-time lights are handled by the ticker).
 Hooks.on("updateWorldTime", () => {
-  sweepExpiredLights().catch(err => console.error(`${MODULE_ID} | World-time expiry check failed`, err));
+  sweepLights().catch(err => console.error(`${MODULE_ID} | World-time light sweep failed`, err));
 });
 
 // A light burning on an Item goes out when that Item leaves its actor.

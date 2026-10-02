@@ -160,6 +160,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       hudHidden: false,
       durationMode: DURATION_MODES.WORLD,
       durationMinutes: 0,
+      endingMinutes: 0,
       patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))]
     });
     await setGmSources(records);
@@ -214,6 +215,7 @@ export class LightSourcesConfig extends HandlebarsApplicationMixin(ApplicationV2
       hudHidden: false,
       durationMode: DURATION_MODES.WORLD,
       durationMinutes: 0,
+      endingMinutes: 0,
       patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))]
     });
     await setGmSources(records);

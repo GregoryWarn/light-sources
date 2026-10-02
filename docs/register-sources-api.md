@@ -132,6 +132,13 @@ Each object in the `entries` array describes a single light source:
           saturation: number,  //   -1–1, default 0
           contrast: number,    //   -1–1, default 0
           shadows: number      //   0–1, default 0
+        },
+        ending: {            // Optional – the running-low look, shown in the source's last endingMinutes; omit or null to keep this look to the end
+          dim: number,       //   As above
+          bright: number,
+          color: string,
+          alpha: number,
+          animation: { type: string, speed: number, intensity: number, reverse: boolean }
         }
       }
     }
@@ -142,7 +149,8 @@ Each object in the `entries` array describes a single light source:
   droppable: boolean,        // Optional – the Token HUD offers Drop while the light burns (default: true)
   hudHidden: boolean,        // Optional – never offered in the Token HUD; lit only through activate() (default: false)
   durationMode: string,      // Optional – "world" (in-game clock) or "real" (wall clock) (default: "world")
-  durationMinutes: number    // Optional – minutes until the light burns out; 0 = unlimited (default: 0)
+  durationMinutes: number,   // Optional – minutes until the light burns out; 0 = unlimited (default: 0)
+  endingMinutes: number      // Optional – the last minutes in which each pattern shows its running-low look; 0 = off (default: 0)
 }
 ```
 
@@ -178,6 +186,9 @@ Negative is a property of the **pattern**, not of the source, so one source can 
 
 #### `advanced`
 Core's **advanced light options** for a pattern. Leave it out (or `null`) and the pattern sets none of them: a lit token keeps its own advanced values and a dropped light gets Foundry's defaults. Give the object and all six are set, both on the token and on a light dropped on the ground; a field left out takes the default listed above. The GM can switch them on per pattern in the light editor. The editor offers no advanced section for a `negative` pattern, as core's own light config offers none for darkness, so a GM saving a darkness pattern there clears it.
+
+#### `ending`
+A pattern's **running-low look**: its own radii, color, intensity and animation, shown in the source's last [`endingMinutes`](#endingminutes) before the light burns out — a torch that gutters redder and smaller, a lantern that flickers as its oil runs dry. Leave it out (or `null`) and the pattern keeps its full look to the end. `negative`, `angle` and `advanced` are not part of it: they say what the light is, not how much fuel it has left, so they carry over from the full look. A darkness pattern can have one too; its darkness shrinks as it fades.
 
 #### `freeForAll`
 When `true`, the source appears in the Token HUD only for actor types enabled in the module's compatibility settings (the "Actor Types" tab) — it needs no inventory item, and the item is never consumed. Useful for ambient environmental effects ("everyone eligible can see in this magically lit area").
@@ -215,6 +226,11 @@ Controls how the countdown timer works:
 | :--- | :--- |
 | `"world"` | Burns down as the GM advances the in-game world clock. Stays lit while the clock is still. |
 | `"real"` | Burns down in real-world minutes, even while the game is paused or the owning player is offline. |
+
+#### `endingMinutes`
+How many of the last minutes before the light burns out each pattern shows its [`ending`](#ending) look. `0` (the default) turns it off; a pattern with no `ending` keeps its full look whatever the value. A value at or above `durationMinutes` makes the light burn its running-low look from the moment it is lit. It counts on the source's own clock (see [`durationMode`](#durationmode)), so a source with no duration never runs low.
+
+Whether a light runs low is worked out from its expiry stamps every time, not scheduled: a light lit, picked up or handed over inside the window starts low, a pattern switch takes the new pattern's running-low look, and a covered light changes its look and stays covered. The active GM's client switches lights that cross the threshold on its regular sweep — every time the world clock moves, and every 15 seconds — both ways, so rewinding the clock brings the full look back. Lights on the ground switch the same way.
 
 #### `hudHidden`
 When `true`, the source is **never offered in the Token HUD palette** while it is unlit. It can only be lit through [`activate`](#activateactor-id-options) — which is the point: for a source whose real cost is a spell slot, a fatigue token or anything else only the game system knows how to charge, a palette entry is a way to get the light without paying for it.
@@ -268,10 +284,10 @@ Reads what is currently burning on an actor.
 
 ```js
 const light = game.lightSources.getActive(actor);
-// → null, or { sourceId, patternId, patternName, itemName, itemId, mode, expiresAtWorld, expiresAtReal, stowed }
+// → null, or { sourceId, patternId, patternName, itemName, itemId, mode, expiresAtWorld, expiresAtReal, runningLow, stowed }
 ```
 
-Returns the active light payload, or `null` when the actor has no light lit. `sourceId` is the source's id — its `uuid` when it has one — and `patternId` the pattern's: for a registered pattern, the `id` it was registered with. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
+Returns the active light payload, or `null` when the actor has no light lit. `sourceId` is the source's id — its `uuid` when it has one — and `patternId` the pattern's: for a registered pattern, the `id` it was registered with. `stowed` is `true` while the light is covered (see [`coverable`](#coverable)). `runningLow` is `true` while the light shows its pattern's running-low look (see [`endingMinutes`](#endingminutes)). `expiresAtWorld` / `expiresAtReal` are absolute stamps and are `null` for a source with no duration.
 
 `itemId` is the id of the carried Item that is burning. Every source has one except two: a `"copy"` source turned one of its items into the flame, and a `freeForAll` source has no item at all, so for those it is `null`. When that Item leaves the actor (deleted from the sheet, dragged to another actor, removed by another module), its light goes out, unless whatever moved it took the light along with [`dropLightWithItem`](#droplightwithitemitem-where) or [`handOverLight`](#handoverlightfromitem-toitem).
 

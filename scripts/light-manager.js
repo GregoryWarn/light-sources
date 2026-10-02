@@ -23,8 +23,7 @@ import {
 let tickerId = null;
 
 /**
- * The expiry sweep last asked for, which every new one waits behind (see
- * `sweepExpiredLights`).
+ * The sweep last asked for, which every new one waits behind (see `sweepLights`).
  * @type {Promise<void>}
  */
 let sweepQueue = Promise.resolve();
@@ -67,7 +66,8 @@ export function getActiveLight(actor) {
  * @returns {object} Plain light data suitable for a Token light source.
  */
 export function buildLightData(pattern) {
-  const { advanced, ...light } = foundry.utils.deepClone(pattern.light);
+  // `ending` is a look of its own, never part of a light's config (see `patternForPhase`).
+  const { advanced, ending, ...light } = foundry.utils.deepClone(pattern.light);
   if ( advanced ) Object.assign(light, advanced);
   light.color = light.color || null;
   light.animation = {
@@ -136,6 +136,55 @@ function buildTiming(source) {
 }
 
 /**
+ * Test whether a burning flame is inside its source's running-low window: within the
+ * source's current `endingMinutes` of burning out.
+ *
+ * Derived every time, never stored as the truth: a flame's expiry stamps travel with
+ * it wherever it goes, so lighting, switching, dropping, picking up and handing over
+ * all reach the same answer, and a GM rewinding the clock or editing the source moves
+ * it with no schedule to rebuild. The `runningLow` a flag stores only records which
+ * look was last written, for the sweep to compare against (see `sweepLightsOnce`).
+ * @param {object} source The registered light source definition.
+ * @param {{mode: string, expiresAtWorld: number|null, expiresAtReal: number|null}} timing
+ *   The flame's expiry stamps (see `buildTiming`).
+ * @returns {boolean} True while the flame runs low.
+ */
+export function isRunningLow(source, timing) {
+  const minutes = source?.endingMinutes;
+  if ( !(minutes > 0) ) return false;
+  if ( timing.mode === DURATION_MODES.REAL ) {
+    return (timing.expiresAtReal != null) && ((timing.expiresAtReal - Date.now()) <= minutes * 60000);
+  }
+  return (timing.expiresAtWorld != null) && ((timing.expiresAtWorld - game.time.worldTime) <= minutes * 60);
+}
+
+/**
+ * The pattern as it burns now: its running-low look laid over its full one, or the
+ * full look alone. Either way the result carries no `ending` key.
+ * @param {object} pattern A light pattern ({id, name, light}).
+ * @param {boolean} low Whether the flame runs low.
+ * @returns {object} The pattern to build the light from.
+ */
+export function patternForPhase(pattern, low) {
+  const { ending, ...light } = pattern.light;
+  if ( !low || !ending ) return { ...pattern, light };
+  return { ...pattern, light: foundry.utils.mergeObject(light, ending, { inplace: false }) };
+}
+
+/**
+ * The `runningLow` marker a flame stores: true only when it is inside the window *and*
+ * its pattern has a running-low look to show. A pattern without one burns its full
+ * look to the end, so its flames never count as switched.
+ * @param {object} source The registered light source definition.
+ * @param {object} pattern The flame's light pattern.
+ * @param {object} timing The flame's expiry stamps.
+ * @returns {boolean}
+ */
+function burnsLow(source, pattern, timing) {
+  return !!pattern.light?.ending && isRunningLow(source, timing);
+}
+
+/**
  * Test whether a light's bookkeeping payload says it has burned out. Shared by the
  * expiry sweep and by pickup, so a light lying on the ground and a light burning on
  * a token go out on exactly the same rule.
@@ -191,6 +240,8 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
   const duration = remaining != null
     ? { value: Math.max(0, Math.round(remaining)), units: "seconds", expiry: EXPIRY_EVENT }
     : { value: null };
+  // A flame lit, picked up or handed over inside the window shows its running-low look at once.
+  const low = burnsLow(source, pattern, timing);
 
   // This effect is system-agnostic: every piece below is core Foundry v14, not
   // system-specific. `token.light.*` is native token-targeting (core strips
@@ -207,14 +258,15 @@ async function createLightEffect(actor, source, pattern, timing, { stowed = fals
     transfer: false,
     disabled: stowed,
     duration,
-    system: { changes: buildLightChanges(pattern) },
+    system: { changes: buildLightChanges(patternForPhase(pattern, low)) },
     flags: { [MODULE_ID]: { [FLAGS.EFFECT_LIGHT]: {
       sourceId: source.id,
       patternId: pattern.id,
       patternName: pattern.name,
       itemName: source.name,
       itemId,
-      ...timing
+      ...timing,
+      runningLow: low
     } } }
   }]);
   return !!created;
@@ -342,7 +394,7 @@ export async function activateLight(actor, source, pattern) {
   // the same flame to burn, so moving between them is never a new light.
   const effect = getLightEffect(actor);
   if ( effect?.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT)?.sourceId === source.id ) {
-    await switchPattern(actor, effect, pattern);
+    await switchPattern(actor, effect, source, pattern);
     return true;
   }
 
@@ -394,18 +446,25 @@ export async function activateLight(actor, source, pattern) {
  * Reshaping a stowed light also uncovers it (see `setLightStowed`): picking a
  * different pattern is a request to see that pattern, and leaving the effect
  * disabled would make the click do nothing visible.
+ *
+ * A flame running low takes the new pattern's running-low look, or its full look
+ * when the new pattern has none.
  * @param {Actor} actor The actor whose light is being reshaped.
  * @param {ActiveEffect} effect The module's light effect currently on the actor.
+ * @param {object} source The registered light source definition.
  * @param {object} pattern The light pattern ({id, name, light}) to switch to.
  * @returns {Promise<void>}
  */
-async function switchPattern(actor, effect, pattern) {
+async function switchPattern(actor, effect, source, pattern) {
   const flag = effect.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT);
+  const low = burnsLow(source, pattern, flag);
   await actor.updateEmbeddedDocuments("ActiveEffect", [{
     _id: effect.id,
     disabled: false,
-    system: { changes: buildLightChanges(pattern) },
-    flags: { [MODULE_ID]: { [FLAGS.EFFECT_LIGHT]: { ...flag, patternId: pattern.id, patternName: pattern.name } } }
+    system: { changes: buildLightChanges(patternForPhase(pattern, low)) },
+    flags: { [MODULE_ID]: { [FLAGS.EFFECT_LIGHT]: {
+      ...flag, patternId: pattern.id, patternName: pattern.name, runningLow: low
+    } } }
   }]);
 }
 
@@ -515,12 +574,13 @@ function buildGroundLightData(actor, source, pattern, active, managedBy = null) 
     itemId: active.itemId ?? null,
     mode: active.mode,
     expiresAtWorld: active.expiresAtWorld,
-    expiresAtReal: active.expiresAtReal
+    expiresAtReal: active.expiresAtReal,
+    runningLow: burnsLow(source, pattern, active)
   };
   if ( managedBy ) ground.managedBy = managedBy;
   return {
     _id: foundry.utils.randomID(),
-    config: buildLightData(pattern),
+    config: buildLightData(patternForPhase(pattern, ground.runningLow)),
     // A covered light put down stays covered: `hidden` is the ground's own version
     // of stowed — the same state the interactive control switches — so the light
     // reads identically in a pocket and on the floor (see `setLightStowed`).
@@ -528,7 +588,7 @@ function buildGroundLightData(actor, source, pattern, active, managedBy = null) 
     // Everything needed to light this same flame again on a token, plus enough to
     // tell a dropped light apart from scenery the GM placed by hand. The expiry
     // stamps carry over untouched: the flame goes on burning where it lies, so the
-    // instant it gutters out does not move (see `sweepExpiredLights`).
+    // instant it gutters out does not move (see `sweepLights`).
     //
     // A light you put down yourself is always yours to work: it gets the interactive
     // control automatically, with no GM opt-in, unlike scenery lights. A managed one
@@ -988,12 +1048,53 @@ function collectExpired(actor, now) {
 }
 
 /**
+ * Work out whether a burning flame shows the wrong look for the phase it is in: it
+ * crossed into its running-low window, or out of it (the clock was rewound, or the GM
+ * edited the source). A flame whose source or pattern is gone is left as it is; the
+ * Token HUD reports that at pickup (see `readFlame`).
+ * @param {object} flag A burning flame's `EFFECT_LIGHT` or `GROUND_LIGHT` payload.
+ * @param {object[]} sources Every light source (see `getSources`).
+ * @returns {{low: boolean, pattern: object}|null} The marker to store and the pattern
+ *   to build the light from, or null when the flame already shows the right look.
+ */
+function phaseChange(flag, sources) {
+  const source = sources.find(s => s.id === flag.sourceId);
+  const pattern = source?.patterns?.find(p => p.id === flag.patternId);
+  if ( !pattern ) return null;
+  const low = burnsLow(source, pattern, flag);
+  if ( low === !!flag.runningLow ) return null;
+  return { low, pattern: patternForPhase(pattern, low) };
+}
+
+/**
+ * Take the sweep's own look switch out of the Lighting layer's undo history. Core
+ * records it like any write the GM's client makes on the scene it views, and Ctrl+Z
+ * would then bring the full look back until the next sweep, ahead of the GM's own
+ * moves on the stack. Only the entry this update just pushed is removed — the last
+ * one, an update of exactly these lights — never an earlier one, so the GM can still
+ * undo moving them. `forgetLightHistory` drops every entry of a light and would take
+ * those moves too.
+ * @param {Scene} scene The scene holding the lights.
+ * @param {string[]} ids The ids of the lights the sweep updated.
+ * @returns {void}
+ */
+function forgetSweepHistory(scene, ids) {
+  const layer = canvas.lighting;
+  if ( !layer || !canvas.scene || (scene !== canvas.scene) ) return;
+  const last = layer.history.at(-1);
+  if ( (last?.type !== "update") || (last.data.length !== ids.length) ) return;
+  if ( last.data.every(d => ids.includes(d._id)) ) layer.history.pop();
+}
+
+/**
  * Find every light that has burned out and put it out — both the ones still
- * burning on a token and the ones lying on the ground where someone dropped them.
- * Runs only on the active GM client, so it works regardless of whether the owning
- * player is connected. Triggered both by the real-time ticker (for real-time lights)
- * and by the `updateWorldTime` hook (for in-game-time lights). Expired lights are
- * deleted and announced in chat; they are never re-lit or re-consumed.
+ * burning on a token and the ones lying on the ground where someone dropped them —
+ * then give every light still burning the look of the phase it is in (see
+ * `isRunningLow`). Runs only on the active GM client, so it works regardless of
+ * whether the owning player is connected. Triggered both by the real-time ticker (for
+ * real-time lights) and by the `updateWorldTime` hook (for in-game-time lights).
+ * Expired lights are deleted and announced in chat; they are never re-lit or
+ * re-consumed, and never switched.
  *
  * Sweeps run one at a time, in the order they were asked for. The ticker and each
  * clock advance ask independently, and two sweeps overlapping collect the same
@@ -1001,31 +1102,32 @@ function collectExpired(actor, now) {
  * ended that sweep before it reached the lights on the ground.
  * @returns {Promise<void>}
  */
-export function sweepExpiredLights() {
-  const sweep = () => sweepOnce();
+export function sweepLights() {
+  const sweep = () => sweepLightsOnce();
   return (sweepQueue = sweepQueue.then(sweep, sweep));
 }
 
 /**
- * One pass of `sweepExpiredLights`.
+ * One pass of `sweepLights`.
  * @returns {Promise<void>}
  */
-async function sweepOnce() {
+async function sweepLightsOnce() {
   if ( game.users.activeGM !== game.user ) return;
   const now = Date.now();
+  const sources = getSources();
   const messages = [];
 
-  // Lights burning on a token.
-  const collected = [];
-  for ( const actor of game.actors ) collected.push(...collectExpired(actor, now));
-
-  // Unlinked tokens keep their effect on a synthetic actor, not in game.actors.
+  // Lights burning on a token. Unlinked tokens keep their effect on a synthetic actor,
+  // not in game.actors.
+  const actors = [...game.actors];
   for ( const scene of game.scenes ) {
     for ( const token of scene.tokens ) {
       if ( token.actorLink || !token.actor ) continue;
-      collected.push(...collectExpired(token.actor, now));
+      actors.push(token.actor);
     }
   }
+  const collected = [];
+  for ( const actor of actors ) collected.push(...collectExpired(actor, now));
 
   // Group deletions per actor (embedded documents have distinct parents). Each actor
   // is deleted on its own, so one that fails keeps neither the others nor the lights
@@ -1054,31 +1156,74 @@ async function sweepOnce() {
     game.i18n.format("LIGHTSOURCES.Chat.Expired", { actor: actor.name, item: itemName })
   )));
 
+  // The flames still burning on a token take the look of their phase. `disabled` is
+  // left alone: a covered flame changes its look and stays covered.
+  for ( const actor of actors ) {
+    const updates = [];
+    for ( const effect of actor.effects ) {
+      const flag = effect.getFlag(MODULE_ID, FLAGS.EFFECT_LIGHT);
+      // A burned-out flame whose deletion failed above is never switched.
+      if ( !flag || isExpired(flag, now) ) continue;
+      const change = phaseChange(flag, sources);
+      if ( !change ) continue;
+      updates.push({
+        _id: effect.id,
+        system: { changes: buildLightChanges(change.pattern) },
+        [`flags.${MODULE_ID}.${FLAGS.EFFECT_LIGHT}.runningLow`]: change.low
+      });
+    }
+    if ( !updates.length ) continue;
+    try {
+      await actor.updateEmbeddedDocuments("ActiveEffect", updates);
+    } catch(err) {
+      console.error(`${MODULE_ID} | Could not switch the running-low look of ${actor.name}'s light`, err);
+    }
+  }
+
   // Lights lying on the ground burn on the very clock they had on the token (their
-  // expiry stamps carried over at drop time), so they gutter out here too rather
-  // than lighting the scene forever. Scenery the GM placed by hand has no flag and
-  // is never touched.
+  // expiry stamps carried over at drop time), so they gutter out, and run low, here
+  // too rather than lighting the scene forever. Scenery the GM placed by hand has no
+  // flag and is never touched.
   for ( const scene of game.scenes ) {
     const burnedOut = [];
+    const switched = [];
     for ( const light of scene.lights ) {
       const flag = light.getFlag(MODULE_ID, FLAGS.GROUND_LIGHT);
-      if ( flag && isExpired(flag, now) ) burnedOut.push({ light, flag });
+      if ( !flag ) continue;
+      if ( isExpired(flag, now) ) {
+        burnedOut.push({ light, flag });
+        continue;
+      }
+      const change = phaseChange(flag, sources);
+      // `hidden` is left alone, as `disabled` is on a token.
+      if ( change ) switched.push({
+        _id: light.id,
+        config: buildLightData(change.pattern),
+        [`flags.${MODULE_ID}.${FLAGS.GROUND_LIGHT}.runningLow`]: change.low
+      });
     }
-    if ( !burnedOut.length ) continue;
+    if ( burnedOut.length ) {
+      try {
+        await scene.deleteEmbeddedDocuments("AmbientLight", burnedOut.map(({ light }) => light.id));
+        for ( const { light } of burnedOut ) forgetLightHistory(scene, light.id);
+        messages.push(...burnedOut.map(({ flag }) => buildLightMessage(
+          // The actor is only the speaker here; a dropped light outlives its owner's
+          // token being deleted, so a missing actor just yields a generic speaker.
+          foundry.utils.fromUuidSync(flag.actorUuid) ?? undefined,
+          game.i18n.localize("LIGHTSOURCES.Chat.GroundExpiredTitle"),
+          game.i18n.format("LIGHTSOURCES.Chat.GroundExpired", { item: flag.itemName })
+        )));
+      } catch(err) {
+        console.error(`${MODULE_ID} | Could not remove the burned-out lights on ${scene.name}`, err);
+      }
+    }
+    if ( !switched.length ) continue;
     try {
-      await scene.deleteEmbeddedDocuments("AmbientLight", burnedOut.map(({ light }) => light.id));
+      await scene.updateEmbeddedDocuments("AmbientLight", switched);
+      forgetSweepHistory(scene, switched.map(({ _id }) => _id));
     } catch(err) {
-      console.error(`${MODULE_ID} | Could not remove the burned-out lights on ${scene.name}`, err);
-      continue;
+      console.error(`${MODULE_ID} | Could not switch the running-low look of the lights on ${scene.name}`, err);
     }
-    for ( const { light } of burnedOut ) forgetLightHistory(scene, light.id);
-    messages.push(...burnedOut.map(({ flag }) => buildLightMessage(
-      // The actor is only the speaker here; a dropped light outlives its owner's
-      // token being deleted, so a missing actor just yields a generic speaker.
-      foundry.utils.fromUuidSync(flag.actorUuid) ?? undefined,
-      game.i18n.localize("LIGHTSOURCES.Chat.GroundExpiredTitle"),
-      game.i18n.format("LIGHTSOURCES.Chat.GroundExpired", { item: flag.itemName })
-    )));
   }
 
   if ( messages.length ) await ChatMessage.implementation.createDocuments(messages);
@@ -1092,7 +1237,7 @@ async function sweepOnce() {
  */
 export function startExpiryTicker() {
   if ( tickerId !== null ) return;
-  const tick = () => sweepExpiredLights().catch(err => console.error(`${MODULE_ID} | Expiry check failed`, err));
+  const tick = () => sweepLights().catch(err => console.error(`${MODULE_ID} | Light sweep failed`, err));
   tickerId = window.setInterval(tick, EXPIRY_CHECK_INTERVAL_MS);
   tick(); // Catch lights that expired while no GM was connected.
 }

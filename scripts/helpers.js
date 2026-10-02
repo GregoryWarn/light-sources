@@ -25,6 +25,29 @@ export function makePattern(light, name) {
 }
 
 /**
+ * Build the fields a light's look is made of: radii, color and animation. Shared by a
+ * pattern's full look and its running-low look, so both are cleaned by the same rules.
+ * A factory for the same reason `sourceField` is one: each parent needs its own instances.
+ * @returns {object} A fresh set of fields.
+ */
+function basicLightFields() {
+  const f = foundry.data.fields;
+  return {
+    dim: new f.NumberField({ required: true, nullable: false, min: 0, initial: 0 }),
+    bright: new f.NumberField({ required: true, nullable: false, min: 0, initial: 0 }),
+    // Blank means "no tint", which the light editor allows.
+    color: new f.StringField({ required: true, blank: true }),
+    alpha: new f.NumberField({ required: true, nullable: false, min: 0, max: 1, initial: 0.5 }),
+    animation: new f.SchemaField({
+      type: new f.StringField({ required: true, blank: true }),
+      speed: new f.NumberField({ required: true, nullable: false, integer: true, min: 1, max: 10, initial: 5 }),
+      intensity: new f.NumberField({ required: true, nullable: false, integer: true, min: 1, max: 10, initial: 5 }),
+      reverse: new f.BooleanField()
+    })
+  };
+}
+
+/**
  * Build the schema of one light source record. The same shape is stored in the
  * world setting, built from a `registerSources` entry, and read from an import
  * file, so all three ways data enters the module are validated by the same rules.
@@ -37,19 +60,9 @@ export function makePattern(light, name) {
 export function sourceField() {
   const f = foundry.data.fields;
   const light = new f.SchemaField({
-    dim: new f.NumberField({ required: true, nullable: false, min: 0, initial: 0 }),
-    bright: new f.NumberField({ required: true, nullable: false, min: 0, initial: 0 }),
+    ...basicLightFields(),
     negative: new f.BooleanField(),
     angle: new f.NumberField({ required: true, nullable: false, min: 5, max: 360, initial: 360 }),
-    // Blank means "no tint", which the light editor allows.
-    color: new f.StringField({ required: true, blank: true }),
-    alpha: new f.NumberField({ required: true, nullable: false, min: 0, max: 1, initial: 0.5 }),
-    animation: new f.SchemaField({
-      type: new f.StringField({ required: true, blank: true }),
-      speed: new f.NumberField({ required: true, nullable: false, integer: true, min: 1, max: 10, initial: 5 }),
-      intensity: new f.NumberField({ required: true, nullable: false, integer: true, min: 1, max: 10, initial: 5 }),
-      reverse: new f.BooleanField()
-    }),
     // Null leaves the token's own advanced options alone. The bounds mirror core's
     // LightData, and the coloration ids are core's shader techniques.
     advanced: new f.SchemaField({
@@ -62,7 +75,11 @@ export function sourceField() {
       saturation: new f.NumberField({ required: true, nullable: false, min: -1, max: 1, initial: 0 }),
       contrast: new f.NumberField({ required: true, nullable: false, min: -1, max: 1, initial: 0 }),
       shadows: new f.NumberField({ required: true, nullable: false, min: 0, max: 1, initial: 0 })
-    }, { required: true, nullable: true, initial: null })
+    }, { required: true, nullable: true, initial: null }),
+    // The look the light takes in its source's last `endingMinutes`; null keeps the
+    // full look to the end. It leaves `negative`, `angle` and `advanced` alone: those
+    // say what the light is, not how much fuel it has left.
+    ending: new f.SchemaField(basicLightFields(), { required: true, nullable: true, initial: null })
   });
   // The nullable strings refuse blank: a blank StringField cleans a missing value to
   // "" rather than null, and a name-only source has no uuid or type at all.
@@ -80,6 +97,9 @@ export function sourceField() {
     hudHidden: new f.BooleanField(),
     durationMode: new f.StringField({ required: true, choices: Object.values(DURATION_MODES), initial: DURATION_MODES.WORLD }),
     durationMinutes: new f.NumberField({ required: true, nullable: false, integer: true, min: 0, initial: 0 }),
+    // How many of the last minutes before burning out each pattern shows its `ending`
+    // look; 0 turns the running-low phase off.
+    endingMinutes: new f.NumberField({ required: true, nullable: false, integer: true, min: 0, initial: 0 }),
     patterns: new f.ArrayField(new f.SchemaField({
       id: new f.StringField({ required: true, blank: false }),
       name: new f.StringField({ required: true, blank: true }),
@@ -466,7 +486,7 @@ export function findGroundLight(token) {
  * Build the ChatMessage data announcing a light event, wrapping the text in the
  * module's standard chat card and speaking as the actor involved. Returns the
  * creation data rather than creating the document, so callers can batch several
- * announcements into one operation (see `sweepExpiredLights` in `light-manager.js`).
+ * announcements into one operation (see `sweepLights` in `light-manager.js`).
  * @param {Actor} [actor] The actor the message speaks for. May be omitted for a
  *   light with no actor left to speak for it (a torch that burned out on the ground
  *   after its owner's token was removed), which yields a generic speaker.

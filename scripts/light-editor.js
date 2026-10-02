@@ -369,7 +369,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const source = this.source
-      ?? { patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))], consume: CONSUME_MODES.NONE, coverable: false, droppable: true, durationMode: DURATION_MODES.WORLD, durationMinutes: 0 };
+      ?? { patterns: [makePattern(DEFAULT_LIGHT, game.i18n.localize("LIGHTSOURCES.Patterns.Standard"))], consume: CONSUME_MODES.NONE, coverable: false, droppable: true, durationMode: DURATION_MODES.WORLD, durationMinutes: 0, endingMinutes: 0 };
     const patterns = this.#draftPatterns ?? source.patterns;
     const registered = getRegisteredSource(this.options.sourceId);
     context.source = source;

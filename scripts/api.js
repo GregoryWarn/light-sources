@@ -18,7 +18,7 @@ import {
 /**
  * The usage fields a caller supplies, with the API's documented defaults filled in.
  * @param {object} entry The caller's light source definition.
- * @returns {{consume: string, freeForAll: boolean, coverable: boolean, droppable: boolean, hudHidden: boolean, durationMode: string, durationMinutes: number}} The usage fields.
+ * @returns {{consume: string, freeForAll: boolean, coverable: boolean, droppable: boolean, hudHidden: boolean, durationMode: string, durationMinutes: number, endingMinutes: number}} The usage fields.
  */
 function usageFields(entry) {
   return {
@@ -28,7 +28,8 @@ function usageFields(entry) {
     droppable: entry.droppable ?? true,
     hudHidden: entry.hudHidden ?? false,
     durationMode: entry.durationMode ?? DURATION_MODES.WORLD,
-    durationMinutes: entry.durationMinutes ?? 0
+    durationMinutes: entry.durationMinutes ?? 0,
+    endingMinutes: entry.endingMinutes ?? 0
   };
 }
 
@@ -211,9 +212,13 @@ export async function deactivate(actor) {
  * `itemId` names the carried Item the light burns on, which then moves and goes out
  * with it. That is every source except one that spends a copy, and a free-for-all
  * source; for those it is null.
+ *
+ * `runningLow` is true while the light shows its pattern's running-low look, in the
+ * source's last `endingMinutes`.
  * @param {Actor} actor The actor to inspect.
  * @returns {object|null} The active light payload ({sourceId, patternId, patternName,
- *   itemName, itemId, mode, expiresAtWorld, expiresAtReal, stowed}), or null when unlit.
+ *   itemName, itemId, mode, expiresAtWorld, expiresAtReal, runningLow, stowed}), or null
+ *   when unlit.
  */
 export function getActive(actor) {
   return getActiveLight(actor);

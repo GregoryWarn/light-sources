@@ -57,18 +57,20 @@ export const SETTINGS = {
  * Flag keys stored under the MODULE_ID scope.
  * - `EFFECT_LIGHT`: marks the ActiveEffect this module creates to drive a token's
  *   light, and carries its bookkeeping payload ({sourceId, patternId, patternName,
- *   itemName, itemId, mode, expiresAtWorld, expiresAtReal}). `itemId` is the carried
- *   Item that is burning, or null when no item is (a copy was spent, or a
+ *   itemName, itemId, mode, expiresAtWorld, expiresAtReal, runningLow}). `itemId` is
+ *   the carried Item that is burning, or null when no item is (a copy was spent, or a
  *   free-for-all source has none); older effects lack it and count as null.
+ *   `runningLow` says the effect carries its pattern's running-low look; older
+ *   effects lack it and count as false.
  * - `GROUND_LIGHT`: marks an AmbientLight dropped by an actor (as opposed to one
  *   the GM placed by hand) and carries what is needed to light it again on a token
  *   ({sourceId, patternId, patternName, itemName, actorUuid, itemId, mode,
- *   expiresAtWorld, expiresAtReal, managedBy}). Without it a dropped light is
+ *   expiresAtWorld, expiresAtReal, runningLow, managedBy}). Without it a dropped light is
  *   indistinguishable from scenery. `itemId` is the Item the flame burned on, as on
  *   `EFFECT_LIGHT`; while it lies there, that Item of `actorUuid` is not lit again.
  *   Older lights lack it and count as null. `managedBy` names the module that placed
  *   it through the API and hands it back itself; absent for a light dropped from the
- *   Token HUD.
+ *   Token HUD. `runningLow` is as on `EFFECT_LIGHT`.
  * - `INTERACTIVE`: set on an AmbientLight the players may switch on and off from the
  *   map. The GM sets it per light in the native light config; lights dropped by a
  *   player get it automatically. A light another module manages keeps the flag but
@@ -197,7 +199,8 @@ export const CHAT_CARD_ACCENT = "#ff9838";
 /**
  * Default light pattern assigned to a newly registered light source.
  * Only basic + animation fields are managed by default; `advanced` stays null, which
- * leaves the token's own advanced light options untouched (see ADVANCED_LIGHT_KEYS).
+ * leaves the token's own advanced light options untouched (see ADVANCED_LIGHT_KEYS),
+ * and `ending` stays null, so the light keeps this look until it burns out.
  * @type {object}
  */
 export const DEFAULT_LIGHT = {
@@ -213,7 +216,8 @@ export const DEFAULT_LIGHT = {
     intensity: 5,
     reverse: false
   },
-  advanced: null
+  advanced: null,
+  ending: null
 };
 
 /**
