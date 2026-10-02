@@ -1,3 +1,16 @@
+# 0.8.0
+
+### Added
+
+* **A light that spends a charge keeps the time it had left** (#16). Putting out a `"charge"` light before it burns down — with **Extinguish Light**, through `deactivate`, or by lighting another source — keeps the time it had left on its item. The next lighting of that item burns that time without spending another charge, and an item that kept time can still be lit at 0 charges. Hover the source in the flame menu to see how much is left. A light that burns out, or that moves to the ground or to another character, keeps nothing this way. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#consume).
+* **Lights that run low before they go out** (#12). Each pattern can have a second, running-low look — its own radii, color and animation — and a source's **Running Low Phase** sets how many of its last minutes use it. A light switches to it on its own, in hand or on the ground, and switches back if the clock is rewound. `registerSources` accepts it as `ending` on a pattern's `light` and `endingMinutes` on the entry. See [the API docs](https://github.com/brunocalado/light-sources/blob/main/docs/register-sources-api.md#ending).
+
+### Fixed
+
+* **The flame button's tooltip is shown.** Hovering the flame button on the Token HUD now tells what is lit and how many minutes it has left. Foundry 14 never displayed that text.
+* **A GM can drag a dropped light on the Lighting layer** (#12). The players' on/off control over an interactive light sat on top of core's own light icon, so dragging the light switched it off instead of moving it. The controls are now hidden while the Lighting layer is active, where a right-click already switches a light.
+
+
 # 0.7.0
 
 ### Added
