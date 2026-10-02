@@ -10,16 +10,41 @@ import {
   MODULE_ID, TEMPLATES, DEFAULT_LIGHT, DURATION_MODES, CONSUME_MODES, RANGE_PRESETS, DURATION_PRESETS, ADVANCED_LIGHT_KEYS
 } from "./constants.js";
 import { getSources, getRegisteredSource, editSource, makePattern } from "./helpers.js";
-import { buildLightData } from "./light-manager.js";
+import { buildLightData, patternForPhase, sweepLights } from "./light-manager.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+/**
+ * Sanitize the fields a light's look is made of — radii, color and animation — from
+ * raw form values. Shared by a pattern's full look and its running-low look, so the
+ * two are clamped and defaulted by the same rules.
+ * @param {object} [raw={}] The raw form values of one look.
+ * @returns {{dim: number, bright: number, color: string, alpha: number, animation: object}}
+ */
+function sanitizeBasic(raw = {}) {
+  const alpha = Number(raw.alpha);
+  const anim = raw.animation ?? {};
+  return {
+    dim: Math.max(0, Number(raw.dim) || 0),
+    bright: Math.max(0, Number(raw.bright) || 0),
+    color: raw.color || "",
+    alpha: Math.clamp(Number.isFinite(alpha) ? alpha : 0.5, 0, 1),
+    animation: {
+      type: anim.type || "",
+      speed: Math.clamp(Number(anim.speed) || 5, 1, 10),
+      intensity: Math.clamp(Number(anim.intensity) || 5, 1, 10),
+      reverse: !!anim.reverse
+    }
+  };
+}
 
 /**
  * Editor for a single registered light source. A source owns one or more light
  * patterns ("stages" — e.g. a flashlight's wide-short beam vs. narrow-long beam);
  * each pattern exposes the basic light configuration and the light animation, with
- * core's advanced light options folded away behind an opt-in section. Consumption and
- * duration are configured once and shared across all of the source's patterns.
+ * its running-low look and core's advanced light options folded away behind opt-in
+ * sections. Consumption and duration are configured once and shared across all of the
+ * source's patterns.
  * While open, every edit is live-previewed on the currently controlled canvas
  * Token (if any), the same way core's placeable config sheets preview changes;
  * the preview follows whichever pattern card the user is currently editing.
@@ -63,11 +88,18 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
   #activePatternIndex = 0;
 
   /**
-   * Ids of the patterns whose collapsed "Advanced" section is open, so a re-render
-   * (adding, removing or restoring a pattern) does not fold it shut again.
+   * Whether the live preview shows the active pattern's running-low look: true while
+   * focus is inside its Running Low section, false anywhere else in the card.
+   * @type {boolean}
+   */
+  #previewLow = false;
+
+  /**
+   * The folded sections that are open, as `${patternId}:${section}`, so a re-render
+   * (adding, removing or restoring a pattern) does not fold them shut again.
    * @type {Set<string>}
    */
-  #openAdvanced = new Set();
+  #openSections = new Set();
 
   static DEFAULT_OPTIONS = {
     id: `${MODULE_ID}-light-editor`,
@@ -165,18 +197,20 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       });
     }
 
-    for ( const details of this.element.querySelectorAll(".ls-pattern-advanced") ) {
+    for ( const details of this.element.querySelectorAll(".ls-pattern-section") ) {
+      const key = `${details.dataset.patternId}:${details.dataset.section}`;
       details.addEventListener("toggle", () => {
-        if ( details.open ) this.#openAdvanced.add(details.dataset.patternId);
-        else this.#openAdvanced.delete(details.dataset.patternId);
+        if ( details.open ) this.#openSections.add(key);
+        else this.#openSections.delete(key);
       });
     }
 
-    // The live preview reflects whichever pattern the user is editing: retarget
-    // it whenever focus enters a pattern card.
+    // The live preview reflects whichever pattern the user is editing, in the look
+    // being edited: retarget it whenever focus enters a pattern card.
     for ( const card of this.element.querySelectorAll(".ls-pattern-card") ) {
-      card.addEventListener("focusin", () => {
+      card.addEventListener("focusin", event => {
         this.#activePatternIndex = Number(card.dataset.patternIndex) || 0;
+        this.#previewLow = !!event.target.closest('[data-section="ending"]');
         this.#applyPreviewLight();
       });
     }
@@ -216,10 +250,11 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       this.render().then(() => this.#applyPreviewLight());
       return;
     }
-    // Toggled in place rather than re-rendered, so values typed before switching the
-    // advanced options off are still there if they are switched back on.
-    if ( event.target?.name?.endsWith(".light.advancedEnabled") ) {
-      const fieldset = event.target.closest(".ls-pattern-advanced")?.querySelector(".ls-advanced-fields");
+    // Toggled in place rather than re-rendered, so values typed before switching a
+    // section off are still there if it is switched back on.
+    const name = event.target?.name ?? "";
+    if ( name.endsWith(".light.advancedEnabled") || name.endsWith(".light.endingEnabled") ) {
+      const fieldset = event.target.closest(".ls-pattern-section")?.querySelector(".ls-section-fields");
       if ( fieldset ) fieldset.disabled = !event.target.checked;
     }
     this.#applyPreviewLight();
@@ -269,7 +304,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     const patterns = this.#readFormPatterns();
     const pattern = patterns[this.#activePatternIndex] ?? patterns[0];
     if ( !pattern ) return;
-    const light = buildLightData(pattern);
+    const light = buildLightData(patternForPhase(pattern, this.#previewLow));
     // `updateSource` merges, so advanced values an earlier preview wrote would linger
     // once the pattern stops setting them: put the token's own back instead.
     if ( !pattern.light.advanced ) {
@@ -323,9 +358,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
    * @returns {object} A light pattern object ready to store on a pattern.
    */
   #buildLightPatch(data) {
-    const alpha = Number(data.light?.alpha);
     const angle = Number(data.light?.angle);
-    const anim = data.light?.animation ?? {};
     const negative = !!data.light?.negative;
     // A darkness pattern has no advanced section (core disables those options for
     // darkness), so it never keeps any.
@@ -337,19 +370,11 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       }))
       : null;
     return {
-      dim: Math.max(0, Number(data.light?.dim) || 0),
-      bright: Math.max(0, Number(data.light?.bright) || 0),
+      ...sanitizeBasic(data.light),
       negative,
       angle: Math.clamp(Number.isFinite(angle) && (angle > 0) ? angle : 360, 5, 360),
-      color: data.light?.color || "",
-      alpha: Math.clamp(Number.isFinite(alpha) ? alpha : 0.5, 0, 1),
-      animation: {
-        type: anim.type || "",
-        speed: Math.clamp(Number(anim.speed) || 5, 1, 10),
-        intensity: Math.clamp(Number(anim.intensity) || 5, 1, 10),
-        reverse: !!anim.reverse
-      },
-      advanced
+      advanced,
+      ending: data.light?.endingEnabled ? sanitizeBasic(data.light.ending) : null
     };
   }
 
@@ -381,25 +406,39 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
     context.colorationTechniques = foundry.canvas.rendering.shaders.AdaptiveLightingShader.SHADER_TECHNIQUES;
     // A source must keep at least one pattern; hide the remove control otherwise.
     context.canRemove = patterns.length > 1;
-    context.patterns = patterns.map((pattern, index) => ({
-      id: pattern.id,
-      name: pattern.name,
-      index,
-      // Handlebars has no arithmetic helper, so the 1-based badge label is
-      // precomputed here rather than derived in the template.
-      number: index + 1,
-      light: pattern.light,
-      // Only a pattern a module registers has a default to fall back to; one the GM
-      // added by hand has none.
-      canRestore: !!registered?.patterns.some(p => p.id === pattern.id),
-      advancedEnabled: !!pattern.light.advanced,
-      advancedOpen: this.#openAdvanced.has(pattern.id),
-      // Left undefined while off, so each input shows core's default for its field.
-      advanced: pattern.light.advanced ?? {},
-      dimPresets: this.#buildPresetOptions(pattern.light.dim, RANGE_PRESETS),
-      brightPresets: this.#buildPresetOptions(pattern.light.bright, RANGE_PRESETS),
-      animationTypes: this.#buildAnimationOptions(pattern.light.animation?.type, pattern.light.negative)
-    }));
+    context.patterns = patterns.map((pattern, index) => {
+      const { dim, bright, color, alpha, animation } = pattern.light;
+      // Off, the section starts from the pattern's own look, so ticking the box begins
+      // from what the light already is rather than from blanks.
+      const ending = pattern.light.ending ?? { dim, bright, color, alpha, animation };
+      return {
+        id: pattern.id,
+        name: pattern.name,
+        index,
+        // Handlebars has no arithmetic helper, so the 1-based badge label is
+        // precomputed here rather than derived in the template.
+        number: index + 1,
+        light: pattern.light,
+        // Only a pattern a module registers has a default to fall back to; one the GM
+        // added by hand has none.
+        canRestore: !!registered?.patterns.some(p => p.id === pattern.id),
+        advancedEnabled: !!pattern.light.advanced,
+        advancedOpen: this.#openSections.has(`${pattern.id}:advanced`),
+        // Left undefined while off, so each input shows core's default for its field.
+        advanced: pattern.light.advanced ?? {},
+        endingEnabled: !!pattern.light.ending,
+        endingOpen: this.#openSections.has(`${pattern.id}:ending`),
+        ending,
+        dimPresets: this.#buildPresetOptions(pattern.light.dim, RANGE_PRESETS),
+        brightPresets: this.#buildPresetOptions(pattern.light.bright, RANGE_PRESETS),
+        animationTypes: this.#buildAnimationOptions(pattern.light.animation?.type, pattern.light.negative),
+        endingDimPresets: this.#buildPresetOptions(ending.dim, RANGE_PRESETS),
+        endingBrightPresets: this.#buildPresetOptions(ending.bright, RANGE_PRESETS),
+        // The running-low look draws from the same set as the full one: a darkness
+        // pattern fades as darkness.
+        endingAnimationTypes: this.#buildAnimationOptions(ending.animation?.type, pattern.light.negative)
+      };
+    });
     const mode = source.durationMode === DURATION_MODES.REAL ? DURATION_MODES.REAL : DURATION_MODES.WORLD;
     context.durationModes = [
       { value: DURATION_MODES.WORLD, label: "LIGHTSOURCES.LightEditor.Fields.DurationModeWorld", selected: mode === DURATION_MODES.WORLD },
@@ -409,6 +448,7 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       value, label: `LIGHTSOURCES.LightEditor.Fields.ConsumeModes.${value}`, selected: source.consume === value
     }));
     context.durationPresets = this.#buildPresetOptions(source.durationMinutes, DURATION_PRESETS);
+    context.endingPresets = this.#buildPresetOptions(source.endingMinutes, DURATION_PRESETS);
     return context;
   }
 
@@ -534,12 +574,16 @@ export class LightSourceEditor extends HandlebarsApplicationMixin(ApplicationV2)
       source.droppable = !!data.droppable;
       source.durationMode = data.durationMode === DURATION_MODES.REAL ? DURATION_MODES.REAL : DURATION_MODES.WORLD;
       source.durationMinutes = Math.max(0, Math.round(Number(data.durationMinutes) || 0));
+      source.endingMinutes = Math.max(0, Math.round(Number(data.endingMinutes) || 0));
       source.patterns = patterns;
       // A registered pattern the GM deleted must stay deleted, rather than come back
       // as one the module added since.
       const kept = new Set(patterns.map(p => p.id));
       source.removedPatterns = (registered?.patterns ?? []).map(p => p.id).filter(id => !kept.has(id));
     });
+    // Lights already burning adopt the edited looks and threshold now rather than on
+    // the next tick. A no-op on any client but the active GM's.
+    await sweepLights().catch(err => console.error(`${MODULE_ID} | Light sweep after saving a source failed`, err));
     this.options.configApp?.render();
   }
 }

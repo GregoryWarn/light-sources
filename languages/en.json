@@ -140,6 +140,9 @@
         "Advanced": "Advanced",
         "AdvancedEnabled": "Use Advanced Options",
         "AdvancedEnabledHint": "Off: the token keeps its own advanced light options, and a dropped light uses Foundry's defaults. On: this pattern sets them, in hand and on the ground. Not available for a darkness source.",
+        "Ending": "Running Low",
+        "EndingEnabled": "Use a Running Low Look",
+        "EndingEnabledHint": "Off: this pattern keeps the look above until it burns out. On: in its last minutes, as set by Running Low Phase on the Consumption tab, the light takes this look instead — on a token or on the ground, covered or not.",
         "Consume": "Lighting Spends",
         "ConsumeModes": {
           "none": "Nothing",
@@ -154,6 +157,8 @@
         "Duration": "Duration (minutes)",
         "DurationHint": "Minutes before the light goes out on its own (counted in the mode chosen below). Use 0 for an unlimited light that only goes out when extinguished manually.",
         "DurationPreset": "Duration Preset",
+        "EndingMinutes": "Running Low Phase (minutes)",
+        "EndingMinutesHint": "How many of the last minutes before the light burns out each pattern shows its Running Low look. Use 0 to turn it off. A value at or above the duration makes the light burn its Running Low look from the moment it is lit.",
         "DurationMode": "Duration Counts In",
         "DurationModeWorld": "In-game time (world clock)",
         "DurationModeReal": "Real time (wall clock)",

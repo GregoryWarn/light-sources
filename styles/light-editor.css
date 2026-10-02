@@ -180,9 +180,10 @@
     }
   }
 
-  /* Folded by default so a card is no taller than it was before these options
-   * existed; the summary is the only line it costs. */
-  .ls-pattern-advanced {
+  /* The Running Low and Advanced sections. Folded by default so a card is no
+   * taller than it was before these options existed; each summary is the only
+   * line it costs. */
+  .ls-pattern-section {
     border-top: 1px solid var(--color-border, #7a7971);
     padding-top: 0.5rem;
 
@@ -200,9 +201,9 @@
     }
   }
 
-  /* A plain grouping box: it exists only so one `disabled` switches every
-   * advanced input off while the opt-in checkbox is clear. */
-  .ls-advanced-fields {
+  /* A plain grouping box: it exists only so one `disabled` switches every input
+   * of a section off while its opt-in checkbox is clear. */
+  .ls-section-fields {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
